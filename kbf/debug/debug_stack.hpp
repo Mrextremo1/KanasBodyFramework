@@ -4,13 +4,37 @@
 
 #include <deque>
 #include <string>
+#include <string_view>
 #include <chrono>
 #include <mutex>
+#include <format>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
 
 #undef ERROR
 
 namespace kbf {
 
+    // ------------------------------------------------------------
+    // FixedString helper for compile-time string tags
+    // ------------------------------------------------------------
+    template <size_t N>
+    struct FixedString {
+        char value[N];
+
+        constexpr FixedString(const char(&str)[N]) {
+            std::copy_n(str, N, value);
+        }
+
+        constexpr operator std::string_view() const {
+            return { value, N - 1 };
+        }
+    };
+
+    // ------------------------------------------------------------
+    // DebugStack
+    // ------------------------------------------------------------
     class DebugStack {
     public:
         DebugStack(size_t limit) : limit{ limit } {}
@@ -20,18 +44,21 @@ namespace kbf {
             COL_WARNING,
             COL_INFO,
             COL_DEBUG,
-			COL_SUCCESS
+            COL_SUCCESS
         };
 
+        // ------------------------------------------------------------
+        // Color helpers
+        // ------------------------------------------------------------
         static glm::vec3 getColor(DebugStack::Color col) {
             switch (col) {
-			case DebugStack::Color::COL_ERROR:   return glm::vec3(0.839f, 0.365f, 0.365f);  // #D65D5D
-			case DebugStack::Color::COL_WARNING: return glm::vec3(0.902f, 0.635f, 0.235f);  // #E6A23C
-			case DebugStack::Color::COL_INFO:    return glm::vec3(0.753f, 0.753f, 0.753f);  // #C0C0C0
-			case DebugStack::Color::COL_DEBUG:   return glm::vec3(0.365f, 0.678f, 0.886f);  // #5DADE2
-			case DebugStack::Color::COL_SUCCESS: return glm::vec3(0.451f, 0.776f, 0.424f);  // #73C66C
+            case DebugStack::Color::COL_ERROR:   return { 0.839f, 0.365f, 0.365f };  // #D65D5D
+            case DebugStack::Color::COL_WARNING: return { 0.902f, 0.635f, 0.235f };  // #E6A23C
+            case DebugStack::Color::COL_INFO:    return { 0.753f, 0.753f, 0.753f };  // #C0C0C0
+            case DebugStack::Color::COL_DEBUG:   return { 0.365f, 0.678f, 0.886f };  // #5DADE2
+            case DebugStack::Color::COL_SUCCESS: return { 0.451f, 0.776f, 0.424f };  // #73C66C
             }
-			return glm::vec3(1.0f, 1.0f, 1.0f);
+            return { 1.0f, 1.0f, 1.0f };
         }
 
         static std::string getColorTypeAsString(DebugStack::Color col) {
@@ -43,8 +70,7 @@ namespace kbf {
             case DebugStack::Color::COL_SUCCESS: return "SUCCESS";
             }
             return "UNKNOWN";
-		}
-
+        }
 
         static DebugStack::Color getColorType(glm::vec3 col) {
             if (col == getColor(DebugStack::Color::COL_ERROR))   return DebugStack::Color::COL_ERROR;
@@ -55,11 +81,13 @@ namespace kbf {
             return DebugStack::Color::COL_INFO;
         }
 
+        // ------------------------------------------------------------
+        // Old push API
+        // ------------------------------------------------------------
         void push(LogData logData) {
             std::lock_guard<std::mutex> lock(mux);
-            stack.push_back(logData);
+            stack.push_back(std::move(logData));
 
-            // Inline this pop to prevent double mutex lock causing a deadlock.
             if (stack.size() > limit && !stack.empty()) {
                 stack.pop_front();
             }
@@ -71,9 +99,7 @@ namespace kbf {
 
         void pop() {
             std::lock_guard<std::mutex> lock(mux);
-            if (!stack.empty()) {
-                stack.pop_front();
-            }
+            if (!stack.empty()) stack.pop_front();
         }
 
         const LogData& peek() const {
@@ -86,44 +112,111 @@ namespace kbf {
             stack.clear();
         }
 
-        bool empty() { 
+        bool empty() const {
             std::lock_guard<std::mutex> lock(mux);
-            return stack.empty(); 
+            return stack.empty();
         }
 
         auto begin() { return stack.begin(); }
         auto end() { return stack.end(); }
 
         auto begin() const { return stack.begin(); }
-        auto end() const { return stack.end(); }
+        auto end()   const { return stack.end(); }
 
-        static inline std::chrono::system_clock ::time_point now() noexcept { return std::chrono::system_clock::now(); }
+        static inline std::chrono::system_clock::time_point now() noexcept {
+            return std::chrono::system_clock::now();
+        }
 
         std::string string() const {
             std::string result;
+
             for (const auto& log : stack) {
-                auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(log.timestamp.time_since_epoch()).count();
+                auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    log.timestamp.time_since_epoch()
+                ).count();
 
-                std::time_t time_t_seconds = millis / 1000;
-                std::tm local_tm;
+                std::time_t seconds = millis / 1000;
+                std::tm local_tm{};
+
 #ifdef _WIN32
-                localtime_s(&local_tm, &time_t_seconds);
+                localtime_s(&local_tm, &seconds);
 #else
-                localtime_r(&time_t_seconds, &local_tm);
+                localtime_r(&seconds, &local_tm);
 #endif
-                int milliseconds = millis % 1000;
 
-                std::ostringstream oss;
-                oss << std::setfill('0')
+                int ms = static_cast<int>(millis % 1000);
+
+                std::ostringstream time;
+                time << std::setfill('0')
                     << std::setw(2) << local_tm.tm_hour << ":"
                     << std::setw(2) << local_tm.tm_min << ":"
                     << std::setw(2) << local_tm.tm_sec << ":"
-                    << std::setw(4) << milliseconds;
+                    << std::setw(4) << ms;
 
-				result += std::format("[{}] [{}] {}\n", oss.str(), getColorTypeAsString(getColorType(log.colour)), log.data);
+                result += std::format(
+                    "[{}] [{}] {}\n",
+                    time.str(),
+                    getColorTypeAsString(getColorType(log.colour)),
+                    log.data
+                );
             }
 
-			return result;
+            return result;
+        }
+
+        // ------------------------------------------------------------
+        // fpush API — new formatted/tagged logging
+        // ------------------------------------------------------------
+
+        // Helper: format string
+        template <typename... Args>
+        static std::string format(std::string_view fmt, Args&&... args) {
+            if constexpr (sizeof...(Args) == 0) {
+                return std::string(fmt);
+            }
+            else {
+                return std::format(fmt, std::forward<Args>(args)...);
+            }
+        }
+
+        // -------------------
+        // No tag
+        // -------------------
+        template <typename... Args>
+        void fpush(std::string_view fmt, Args&&... args) {
+            fpush(Color::COL_DEBUG, fmt, std::forward<Args>(args)...);
+        }
+
+        template <typename... Args>
+        void fpush(Color color, std::string_view fmt, Args&&... args) {
+            push(LogData{
+                format(fmt, std::forward<Args>(args)...),
+                getColor(color),
+                now()
+                });
+        }
+
+        // -------------------
+        // With compile-time tag
+        // -------------------
+        template <FixedString Tag, typename... Args>
+        void fpush(std::string_view fmt, Args&&... args) {
+            fpush<Tag>(Color::COL_DEBUG, fmt, std::forward<Args>(args)...);
+        }
+
+        template <FixedString Tag, typename... Args>
+        void fpush(Color color, std::string_view fmt, Args&&... args) {
+            std::string message = std::format(
+                "{} {}",
+                std::string_view(Tag),
+                format(fmt, std::forward<Args>(args)...)
+            );
+
+            push(LogData{
+                std::move(message),
+                getColor(color),
+                now()
+                });
         }
 
     private:
