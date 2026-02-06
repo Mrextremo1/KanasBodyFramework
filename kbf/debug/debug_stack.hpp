@@ -200,23 +200,18 @@ namespace kbf {
         // With compile-time tag
         // -------------------
         template <FixedString Tag, typename... Args>
-        void fpush(std::string_view fmt, Args&&... args) {
+        void fpush(std::format_string<Args...> fmt, Args&&... args) {
             fpush<Tag>(Color::COL_DEBUG, fmt, std::forward<Args>(args)...);
         }
 
         template <FixedString Tag, typename... Args>
-        void fpush(Color color, std::string_view fmt, Args&&... args) {
+        void fpush(Color color, std::format_string<Args...> fmt, Args&&... args) {
             std::string message = std::format(
                 "{} {}",
                 std::string_view(Tag),
-                format(fmt, std::forward<Args>(args)...)
+                std::format(fmt, std::forward<Args>(args)...)
             );
-
-            push(LogData{
-                std::move(message),
-                getColor(color),
-                now()
-                });
+            push(LogData{ std::move(message), getColor(color), now() });
         }
 
     private:
