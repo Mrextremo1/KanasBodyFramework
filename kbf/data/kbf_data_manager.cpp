@@ -20,6 +20,8 @@
 #include <kbf/util/io/zip_file.hpp>
 #include <kbf/util/io/get_relative_subfolder.hpp>
 #include <kbf/data/ids/armour_list_ids.hpp>
+#include <kbf/data/armour/armour_data_manager.hpp>
+#include <kbf/data/npc/npc_data_manager.hpp>
 #include <kbf/data/bones/bone_symmetry_utils.hpp>
 
 #include <filesystem>
@@ -68,6 +70,8 @@ namespace kbf {
         #endif
 
         loadArmourList(armourListPath, &ArmourList::ACTIVE_MAPPING);
+		NpcDataManager::get();    // initialize singleton to populate NPC mappings
+        ArmourDataManager::get(); // initialize singleton to populate armour mappings
     }
 
     void KBFDataManager::clearData() {
@@ -177,8 +181,8 @@ namespace kbf {
             const std::string& presetUUID = targetMap->at(armourSet);
             return getPresetByUUID(presetUUID);
         }
-        else if (activePresetGroup->armourHasPresetUUID(ArmourList::DefaultArmourSet(), piece)) {
-            const std::string& presetUUID = targetMap->at(ArmourList::DefaultArmourSet());
+        else if (activePresetGroup->armourHasPresetUUID(ArmourSet::DEFAULT, piece)) {
+            const std::string& presetUUID = targetMap->at(ArmourSet::DEFAULT);
             return getPresetByUUID(presetUUID);
         }
 
@@ -258,8 +262,8 @@ namespace kbf {
                 const std::string& presetUUID = targetMap->at(armourSet);
                 return getPresetByUUID(presetUUID);
             }
-            else if (activePresetGroup->armourHasPresetUUID(ArmourList::DefaultArmourSet(), piece)) {
-                const std::string& presetUUID = targetMap->at(ArmourList::DefaultArmourSet());
+            else if (activePresetGroup->armourHasPresetUUID(ArmourSet::DEFAULT, piece)) {
+                const std::string& presetUUID = targetMap->at(ArmourSet::DEFAULT);
                 return getPresetByUUID(presetUUID);
             }
 

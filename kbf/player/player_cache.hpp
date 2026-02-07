@@ -13,6 +13,7 @@ namespace kbf {
 		reframework::API::ManagedObject* Transform;
 		reframework::API::ManagedObject* Motion;
 		reframework::API::ManagedObject* HunterCharacter;
+		reframework::API::ManagedObject* cHunterCreateInfo;
 
 		PlayerData playerData;
 

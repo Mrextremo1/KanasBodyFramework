@@ -39,6 +39,7 @@ namespace kbf {
 		void drawPerformanceTab_TimingRow(std::string blockName, double t, const double* max_t = nullptr);
 		void drawSituationTab();
 		void drawSituationTab_Row(std::string name, bool active, bool colorBg);
+		void drawArmourList();
 		void drawPlayerList();
 		void drawPlayerListRow(PlayerInfo info, const PersistentPlayerInfo* pInfo);
 		void drawNpcList();

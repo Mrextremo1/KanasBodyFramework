@@ -12,8 +12,12 @@
 #include <kbf/util/re_engine/dump_components.hpp>
 #include <kbf/util/re_engine/print_re_object.hpp>
 #include <kbf/util/string/ptr_to_hex_string.hpp>
+#include <kbf/enums/armor_parts.hpp>
+#include <kbf/data/armour/armor_set_id.hpp>
+#include <kbf/data/armour/armour_data_manager.hpp>
 #include <kbf/debug/debug_stack.hpp>
 
+#include <kbf/util/re_engine/guid_to_string.hpp>
 #include <kbf/profiling/cpu_profiler.hpp>
 
 #define PLAYER_TRACKER_LOG_TAG "[PlayerTracker]"
@@ -81,7 +85,7 @@ namespace kbf {
         // Additionally consider one extra 'preview preset' for those currently being edited in the GUI
         const Preset* previewedPreset = dataManager.getPreviewedPreset();
         const bool hasPreview = previewedPreset != nullptr;
-        const bool applyPreviewUnconditional = hasPreview && previewedPreset->armour == ArmourList::DefaultArmourSet();
+        const bool applyPreviewUnconditional = hasPreview && previewedPreset->armour == ArmourSet::DEFAULT;
 
         // Only apply first n players based on distance to camera
         const int maxPlayersToApply = std::max<int>(dataManager.settings().maxConcurrentApplications, 0);
@@ -432,10 +436,10 @@ namespace kbf {
         if (outInfo.optionalPointers.EventModelSetupper == nullptr) return false;
 
         // TODO: Note, there is also mcNpcVisualController for use with NPCs
-        REApi::ManagedObject* mcPreviewHunterVisualController = REFieldPtr<REApi::ManagedObject>(outInfo.optionalPointers.EventModelSetupper, "_HunterVisualController", false);
+        REApi::ManagedObject* mcPreviewHunterVisualController = REFieldPtr<REApi::ManagedObject>(outInfo.optionalPointers.EventModelSetupper, "_HunterVisualController");
         if (mcPreviewHunterVisualController == nullptr) return false;
 
-        int32_t* equipAppearanceSaveIndex = REFieldPtr<int32_t>(mcPreviewHunterVisualController, "_EquipAppearanceSaveIndex", true);
+        int32_t* equipAppearanceSaveIndex = REFieldPtr<int32_t>(mcPreviewHunterVisualController, "_EquipAppearanceSaveIndex");
         if (equipAppearanceSaveIndex == nullptr) return false;
         // This is sketch af, the field ptr here is off by 0x10 for some reason... would be better to straight read the memmory.
         // WARNING: This might change with game updates.
@@ -457,9 +461,9 @@ namespace kbf {
     bool PlayerTracker::fetchPlayers_MainMenu_WeaponObjects(const PlayerInfo& info, PersistentPlayerInfo& outPInfo) {
         if (info.optionalPointers.EventModelSetupper == nullptr) return false;
 
-        outPInfo.Wp_Parent_GameObject    = REFieldPtr<REApi::ManagedObject>(info.optionalPointers.EventModelSetupper, "_WeaponObj",         false);
-        outPInfo.WpSub_Parent_GameObject = REFieldPtr<REApi::ManagedObject>(info.optionalPointers.EventModelSetupper, "_WeaponSubObj",      false);
-        outPInfo.Wp_Insect               = REFieldPtr<REApi::ManagedObject>(info.optionalPointers.EventModelSetupper, "_WeaponExternalObj", false);
+        outPInfo.Wp_Parent_GameObject    = REFieldPtr<REApi::ManagedObject>(info.optionalPointers.EventModelSetupper, "_WeaponObj"        );
+        outPInfo.WpSub_Parent_GameObject = REFieldPtr<REApi::ManagedObject>(info.optionalPointers.EventModelSetupper, "_WeaponSubObj"     );
+        outPInfo.Wp_Insect               = REFieldPtr<REApi::ManagedObject>(info.optionalPointers.EventModelSetupper, "_WeaponExternalObj");
 
         return (outPInfo.Wp_Parent_GameObject || outPInfo.WpSub_Parent_GameObject);
     }
@@ -972,7 +976,7 @@ namespace kbf {
 
         // UPDATE NOTE: The offset here *might* change here? Still not sure why this function provides incorrect offsets...
         constexpr uint64_t offset_IsSelfProfile = 0x50;
-        bool* isSelfProfile = REFieldPtr<bool>(guiManager.get(), "_HunterProfile_IsSelfProfile", true);
+        bool* isSelfProfile = REFieldPtr<bool>(guiManager.get(), "_HunterProfile_IsSelfProfile");
         isSelfProfile = reinterpret_cast<bool*>((uintptr_t)isSelfProfile + offset_IsSelfProfile);
 
         if (isSelfProfile == nullptr) return false;
@@ -987,7 +991,7 @@ namespace kbf {
         }
         else {
             // Name & Hunter ID
-            REApi::ManagedObject* HunterProfile_UserInfo = REFieldPtr<REApi::ManagedObject>(guiManager.get(), "_HunterProfile_UserInfo", false);
+            REApi::ManagedObject* HunterProfile_UserInfo = REFieldPtr<REApi::ManagedObject>(guiManager.get(), "_HunterProfile_UserInfo");
             if (HunterProfile_UserInfo == nullptr) return false;
 
             std::string name = REInvokeStr(HunterProfile_UserInfo, "get_PlName", {});
@@ -997,10 +1001,10 @@ namespace kbf {
             if (shortHunterId.empty()) return false;
 
             // Go fishing for the gender...
-            REApi::ManagedObject* GuildCardSceneController = REFieldPtr<REApi::ManagedObject>(guiManager.get(), "_HunterProfile_SceneController", false);
+            REApi::ManagedObject* GuildCardSceneController = REFieldPtr<REApi::ManagedObject>(guiManager.get(), "_HunterProfile_SceneController");
             if (GuildCardSceneController == nullptr) return false;
 
-            REApi::ManagedObject* CharacterEditBuilder = REFieldPtr<REApi::ManagedObject>(GuildCardSceneController, "_HunterBuilder", false);
+            REApi::ManagedObject* CharacterEditBuilder = REFieldPtr<REApi::ManagedObject>(GuildCardSceneController, "_HunterBuilder");
             if (CharacterEditBuilder == nullptr) return false;
 
             int physiqueStyle = REInvoke<int>(CharacterEditBuilder, "get_PhysiqueStyle", {}, InvokeReturnType::DWORD);
@@ -1086,11 +1090,12 @@ namespace kbf {
             BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Normal Gameplay - Basic Info - Cache Load");
             const NormalGameplayPlayerCache& slotCache = playerInfoCaches[i].value();
             if (!slotCache.isEmpty()) {
-                info.index                            = i;
-                info.playerData                       = slotCache.playerData;
-                info.pointers.Transform               = slotCache.Transform;
-                info.optionalPointers.Motion          = slotCache.Motion;
-                info.optionalPointers.HunterCharacter = slotCache.HunterCharacter;
+                info.index                              = i;
+                info.playerData                         = slotCache.playerData;
+                info.pointers.Transform                 = slotCache.Transform;
+                info.optionalPointers.Motion            = slotCache.Motion;
+                info.optionalPointers.HunterCharacter   = slotCache.HunterCharacter;
+                info.optionalPointers.cHunterCreateInfo = slotCache.cHunterCreateInfo;
                 usedCache = true;
             }
             END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Normal Gameplay - Basic Info - Cache Load");
@@ -1112,10 +1117,11 @@ namespace kbf {
             END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Normal Gameplay - Basic Info");
             // Update Cached Basic Info
             NormalGameplayPlayerCache newCache{};
-            newCache.playerData      = info.playerData;
-            newCache.Transform       = info.pointers.Transform;
-            newCache.Motion          = info.optionalPointers.Motion;
-            newCache.HunterCharacter = info.optionalPointers.HunterCharacter;
+            newCache.playerData        = info.playerData;
+            newCache.Transform         = info.pointers.Transform;
+            newCache.Motion            = info.optionalPointers.Motion;
+            newCache.HunterCharacter   = info.optionalPointers.HunterCharacter;
+            newCache.cHunterCreateInfo = info.optionalPointers.cHunterCreateInfo;
             playerInfoCaches[i] = newCache;
             END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Normal Gameplay - Basic Info");
         }
@@ -1153,6 +1159,10 @@ namespace kbf {
         REApi::ManagedObject* cPlayerManageInfo = REInvokePtr<REApi::ManagedObject>(playerManager.get(), "findPlayer_StableMemberIndex(System.Int32, app.net_session_manager.SESSION_TYPE)", {(void*)i, (void*)1});
         if (cPlayerManageInfo == nullptr) { clearPlayerSlot(i); return PlayerFetchFlags::FETCH_PLAYER_SLOT_EMPTY; } // Player slot is empty, clear it
 
+        // Query for app.cPlayerManageControl to find most up-to-date HunterCreateInfo that includes previews.
+        REApi::ManagedObject* cPlayerManageControl = REInvokePtr<REApi::ManagedObject>(playerManager.get(), "findPlayerControl_StableMemberIndex(System.Int32)", { (void*)i });
+        if (!cPlayerManageControl) { clearPlayerSlot(i); return PlayerFetchFlags::FETCH_PLAYER_SLOT_EMPTY; }
+
         bool includeThisPlayer = false;
         if (inQuest) includeThisPlayer = REInvoke<bool>(playerManager.get(), "isQuestMember(System.Int32)", {(void*)i}, InvokeReturnType::BOOL);
         else         includeThisPlayer = cPlayerManageInfo->is_managed_object();
@@ -1189,9 +1199,12 @@ namespace kbf {
             }
         }
         else {
-            // In offline mode, grab the main player's hunter ID from the context manager instead.
-            hunterId = REInvokeStr(netContextManager, "get_HunterShortId", {});
-            if (hunterId.empty()) {
+            // Net info is incosistent as sh*t, so use save data for offline main hunter
+            PlayerData p{};
+            if (getActiveSavePlayerData(p)) {
+                hunterId = REInvokeStr(netContextManager, "get_HunterShortId", {});
+            }
+            else {
                 DEBUG_STACK.push(std::format("{} Failed to fetch Hunter ID in singleplayer.", PLAYER_TRACKER_LOG_TAG, i), DebugStack::Color::COL_WARNING);
                 return PlayerFetchFlags::FETCH_ERROR_NULL;
             }
@@ -1215,11 +1228,13 @@ namespace kbf {
         PlayerPointers pointers{};
         pointers.Transform = Transform;
 
+		REApi::ManagedObject* requestedReloadingCreateInfo = REFieldPtr<REApi::ManagedObject>(cPlayerManageControl, "_RequestedReloadingCreateInfo");
+
         PlayerOptionalPointers optPointers{};
         optPointers.cPlayerManageInfo = cPlayerManageInfo;
         optPointers.HunterCharacter   = HunterCharacter;
         optPointers.Motion            = Motion;
-        optPointers.cHunterCreateInfo = cHunterCreateInfo;
+        optPointers.cHunterCreateInfo = requestedReloadingCreateInfo;
 
         out.playerData       = playerData;
         out.index            = i;
@@ -1341,19 +1356,56 @@ namespace kbf {
 
         pInfo.armourInfo = ArmourInfo{}; // Reset
 
-        std::array<ArmourSet, 6> foundArmours = findAllArmoursInObjectFromList(info.pointers.Transform, info.playerData.female);
-        for (size_t i = 0; foundArmours.size() < 5; i++) {
-            if (i == static_cast<int>(ArmourPiece::AP_HELM) - 1) continue; // Helm is optional due to toggle
-            if (i == static_cast<int>(ArmourPiece::AP_SLINGER) - 1) continue; // Slinger is also just optional
-            if (foundArmours[i] == ArmourList::DefaultArmourSet()) return false;
-        }
+        // Use this when in the smithy / already used once?? Maybe trigger usage from onEquipArmor thing??
+        WholeBodyArmorSetID* armourSetIDwholeBody = REFieldPtr<WholeBodyArmorSetID>(info.optionalPointers.cHunterCreateInfo, "ArmorSetID_WholeBody");
+        if (armourSetIDwholeBody == nullptr) return false;
 
-        pInfo.armourInfo.helm    = foundArmours[static_cast<size_t>(ArmourPiece::AP_HELM)    - 1];
-        pInfo.armourInfo.body    = foundArmours[static_cast<size_t>(ArmourPiece::AP_BODY)    - 1];
-        pInfo.armourInfo.arms    = foundArmours[static_cast<size_t>(ArmourPiece::AP_ARMS)    - 1];
-        pInfo.armourInfo.coil    = foundArmours[static_cast<size_t>(ArmourPiece::AP_COIL)    - 1];
-        pInfo.armourInfo.legs    = foundArmours[static_cast<size_t>(ArmourPiece::AP_LEGS)    - 1];
-        pInfo.armourInfo.slinger = foundArmours[static_cast<size_t>(ArmourPiece::AP_SLINGER) - 1];
+      //  for (size_t i = 0; i < 241; i++) {
+      //      std::string helmName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::HELM, (void*)i }, LocalizationLanguage::English);
+		    //std::string bodyName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::BODY, (void*)i }, LocalizationLanguage::English);
+		    //std::string armsName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::ARMS, (void*)i }, LocalizationLanguage::English);
+		    //std::string coilName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::COIL, (void*)i }, LocalizationLanguage::English);
+		    //std::string legsName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::LEGS, (void*)i }, LocalizationLanguage::English);
+
+		    //DEBUG_STACK.push(std::format("Helm: {} | {}", i, helmName), DebugStack::Color::COL_WARNING);
+		    //DEBUG_STACK.push(std::format("Body: {} | {}", i, bodyName), DebugStack::Color::COL_WARNING);
+		    //DEBUG_STACK.push(std::format("Arms: {} | {}", i, armsName), DebugStack::Color::COL_WARNING);
+		    //DEBUG_STACK.push(std::format("Coil: {} | {}", i, coilName), DebugStack::Color::COL_WARNING);
+		    //DEBUG_STACK.push(std::format("Legs: {} | {}", i, legsName), DebugStack::Color::COL_WARNING);
+
+      //  }
+
+        // TODO: We need to check each piece if it's NOT VISIBLE so we can fallback to inner armours.
+
+        //// This is EQUIPPED ARMOUR APPEARANCE ONLY
+        ArmorSetID helmSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM }, InvokeReturnType::WORD);
+        ArmorSetID bodySetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY }, InvokeReturnType::WORD);
+        ArmorSetID armsSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS }, InvokeReturnType::WORD);
+        ArmorSetID coilSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL }, InvokeReturnType::WORD);
+        ArmorSetID legsSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS }, InvokeReturnType::WORD);
+        ArmorSetID slingerSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER }, InvokeReturnType::WORD);
+
+		ArmourDataManager& dataMgr = ArmourDataManager::get();
+
+        pInfo.armourInfo.helm    = dataMgr.getArmourSetFromArmourID(helmSetID);
+        pInfo.armourInfo.body    = dataMgr.getArmourSetFromArmourID(bodySetID);
+		pInfo.armourInfo.arms    = dataMgr.getArmourSetFromArmourID(armsSetID);
+		pInfo.armourInfo.coil    = dataMgr.getArmourSetFromArmourID(coilSetID);
+		pInfo.armourInfo.legs    = dataMgr.getArmourSetFromArmourID(legsSetID);
+		pInfo.armourInfo.slinger = dataMgr.getArmourSetFromArmourID(slingerSetID);
+
+        //// The PREVIEW ARMOR APPREARANCE can be found at:
+        //// app.cPlayerManageControl -> _RequestedReloadingCreateInfo -> ArmorSetID_WholeBody
+
+        //// The GAMEOBJECTS holding these parts SHOULD be found at HunterCharacter:getParts(app.ArmorDef.ARMOR_PARTS)
+
+        //DEBUG_STACK.push(std::format("helm: {}", helmSetID.id), DebugStack::Color::COL_WARNING);
+        //DEBUG_STACK.push(std::format("body: {}", bodySetID.id), DebugStack::Color::COL_WARNING);
+        //DEBUG_STACK.push(std::format("arms: {}", armsSetID.id), DebugStack::Color::COL_WARNING);
+        //DEBUG_STACK.push(std::format("coil: {}", coilSetID.id), DebugStack::Color::COL_WARNING);
+        //DEBUG_STACK.push(std::format("legs: {}", legsSetID.id), DebugStack::Color::COL_WARNING);
+        //DEBUG_STACK.push(std::format("slinger: {}", slingerSetID.id), DebugStack::Color::COL_WARNING);
+        ///// -------------------
 
         return true;
     }
@@ -1369,31 +1421,45 @@ namespace kbf {
         // Base transform is fetched every frame
         pInfo.Transform_base = info.pointers.Transform;
 
-        if (pInfo.armourInfo.helm.has_value()) {
-            std::string helmId = ArmourList::getArmourId(pInfo.armourInfo.helm.value(), ArmourPiece::AP_HELM, info.playerData.female);
-            pInfo.Transform_helm = findTransform(info.pointers.Transform, helmId);
-        }
-        if (pInfo.armourInfo.body.has_value()) {
-            std::string bodyId = ArmourList::getArmourId(pInfo.armourInfo.body.value(), ArmourPiece::AP_BODY, info.playerData.female);
-            pInfo.Transform_body = findTransform(info.pointers.Transform, bodyId);
-        }
-        if (pInfo.armourInfo.arms.has_value()) {
-            std::string armsId = ArmourList::getArmourId(pInfo.armourInfo.arms.value(), ArmourPiece::AP_ARMS, info.playerData.female);
-            pInfo.Transform_arms = findTransform(info.pointers.Transform, armsId);
-        }
-        if (pInfo.armourInfo.coil.has_value()) {
-            std::string coilId = ArmourList::getArmourId(pInfo.armourInfo.coil.value(), ArmourPiece::AP_COIL, info.playerData.female);
-            pInfo.Transform_coil = findTransform(info.pointers.Transform, coilId);
-        }
-        if (pInfo.armourInfo.legs.has_value()) {
-            std::string legsId = ArmourList::getArmourId(pInfo.armourInfo.legs.value(), ArmourPiece::AP_LEGS, info.playerData.female);
-            pInfo.Transform_legs = findTransform(info.pointers.Transform, legsId);
-        }
-        if (pInfo.armourInfo.slinger.has_value()) {
-            std::string slingerId = ArmourList::getArmourId(pInfo.armourInfo.slinger.value(), ArmourPiece::AP_SLINGER, info.playerData.female);
-            REApi::ManagedObject* slingerTransform = findTransform(info.pointers.Transform, slingerId);
-            pInfo.Slinger_GameObject = (slingerTransform) ? REInvokePtr<REApi::ManagedObject>(slingerTransform, "get_GameObject", {}) : nullptr;
-        }
+        REApi::ManagedObject* helmGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM }   );
+        REApi::ManagedObject* bodyGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY }   );
+        REApi::ManagedObject* armsGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS }   );
+        REApi::ManagedObject* coilGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL }   );
+        REApi::ManagedObject* legsGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS }   );
+        
+		pInfo.Transform_helm = (helmGameObj) ? REInvokePtr<REApi::ManagedObject>(helmGameObj, "get_Transform", {}) : nullptr;
+		pInfo.Transform_body = (bodyGameObj) ? REInvokePtr<REApi::ManagedObject>(bodyGameObj, "get_Transform", {}) : nullptr;
+		pInfo.Transform_arms = (armsGameObj) ? REInvokePtr<REApi::ManagedObject>(armsGameObj, "get_Transform", {}) : nullptr;
+		pInfo.Transform_coil = (coilGameObj) ? REInvokePtr<REApi::ManagedObject>(coilGameObj, "get_Transform", {}) : nullptr;
+		pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
+        
+        REApi::ManagedObject* slingerGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
+
+        //if (pInfo.armourInfo.helm.has_value()) {
+        //    std::string helmId = ArmourList::getArmourId(pInfo.armourInfo.helm.value(), ArmourPiece::AP_HELM, info.playerData.female);
+        //    pInfo.Transform_helm = findTransform(info.pointers.Transform, helmId);
+        //}
+        //if (pInfo.armourInfo.body.has_value()) {
+        //    std::string bodyId = ArmourList::getArmourId(pInfo.armourInfo.body.value(), ArmourPiece::AP_BODY, info.playerData.female);
+        //    pInfo.Transform_body = findTransform(info.pointers.Transform, bodyId);
+        //}
+        //if (pInfo.armourInfo.arms.has_value()) {
+        //    std::string armsId = ArmourList::getArmourId(pInfo.armourInfo.arms.value(), ArmourPiece::AP_ARMS, info.playerData.female);
+        //    pInfo.Transform_arms = findTransform(info.pointers.Transform, armsId);
+        //}
+        //if (pInfo.armourInfo.coil.has_value()) {
+        //    std::string coilId = ArmourList::getArmourId(pInfo.armourInfo.coil.value(), ArmourPiece::AP_COIL, info.playerData.female);
+        //    pInfo.Transform_coil = findTransform(info.pointers.Transform, coilId);
+        //}
+        //if (pInfo.armourInfo.legs.has_value()) {
+        //    std::string legsId = ArmourList::getArmourId(pInfo.armourInfo.legs.value(), ArmourPiece::AP_LEGS, info.playerData.female);
+        //    pInfo.Transform_legs = findTransform(info.pointers.Transform, legsId);
+        //}
+        //if (pInfo.armourInfo.slinger.has_value()) {
+        //    std::string slingerId = ArmourList::getArmourId(pInfo.armourInfo.slinger.value(), ArmourPiece::AP_SLINGER, info.playerData.female);
+        //    REApi::ManagedObject* slingerTransform = findTransform(info.pointers.Transform, slingerId);
+        //    pInfo.Slinger_GameObject = (slingerTransform) ? REInvokePtr<REApi::ManagedObject>(slingerTransform, "get_GameObject", {}) : nullptr;
+        //}
 
         bool foundRequired = (pInfo.Transform_base &&
             pInfo.Transform_body &&
@@ -1508,13 +1574,13 @@ namespace kbf {
         REApi::ManagedObject* cCharacterEdit_Hunter = REInvokePtr<REApi::ManagedObject>(currentSaveData, "get_CharacterEdit_Hunter", {});
         if (cCharacterEdit_Hunter == nullptr) return false;
 
-        std::string playerName = REFieldStr(cBasicParam, "CharName", REStringType::SYSTEM_STRING, false);
+        std::string playerName = REFieldStr(cBasicParam, "CharName", REStringType::SYSTEM_STRING);
         if (playerName.empty()) return false;
 
-        std::string hunterShortId = REFieldStr(currentSaveData, "HunterShortId", REStringType::SYSTEM_STRING, false);
+        std::string hunterShortId = REFieldStr(currentSaveData, "HunterShortId", REStringType::SYSTEM_STRING);
         if (hunterShortId.empty()) return false;
 
-        int* genderIdentity = REFieldPtr<int>(cCharacterEdit_Hunter, "GenderIdentity", true);
+        int* genderIdentity = REFieldPtr<int>(cCharacterEdit_Hunter, "GenderIdentity");
         if (genderIdentity == nullptr) return false;
         bool female = *genderIdentity == 1;
 
@@ -1540,13 +1606,13 @@ namespace kbf {
         REApi::ManagedObject* cCharacterEdit_Hunter = REInvokePtr<REApi::ManagedObject>(currentSaveData, "get_CharacterEdit_Hunter", {});
         if (cCharacterEdit_Hunter == nullptr) return false;
 
-        std::string playerName = REFieldStr(cBasicParam, "CharName", REStringType::SYSTEM_STRING, false);
+        std::string playerName = REFieldStr(cBasicParam, "CharName", REStringType::SYSTEM_STRING);
         if (playerName.empty()) return false;
 
-        std::string hunterShortId = REFieldStr(currentSaveData, "HunterShortId", REStringType::SYSTEM_STRING, false);
+        std::string hunterShortId = REFieldStr(currentSaveData, "HunterShortId", REStringType::SYSTEM_STRING);
         if (hunterShortId.empty()) return false;
 
-        int* genderIdentity = REFieldPtr<int>(cCharacterEdit_Hunter, "GenderIdentity", true);
+        int* genderIdentity = REFieldPtr<int>(cCharacterEdit_Hunter, "GenderIdentity");
         if (genderIdentity == nullptr) return false;
         bool female = *genderIdentity == 1;
 

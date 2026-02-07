@@ -1,6 +1,7 @@
 #include <kbf/gui/tabs/debug/debug_tab.hpp>
 
 #include <kbf/npc/get_npc_name.hpp>
+#include <kbf/data/npc/npc_data_manager.hpp>
 #include <kbf/gui/shared/styling_consts.hpp>
 #include <kbf/gui/shared/alignment.hpp>
 #include <kbf/data/ids/font_symbols.hpp>
@@ -10,6 +11,8 @@
 #include <kbf/util/font/default_font_sizes.hpp>
 #include <kbf/util/string/ptr_to_hex_string.hpp>
 #include <kbf/situation/situation_watcher.hpp>
+#include <kbf/data/armour/armour_data_manager.hpp>
+#include <kbf/gui/shared/sex_marker.hpp>
 
 #include <chrono>
 #include <sstream>
@@ -31,6 +34,10 @@ namespace kbf {
             }
             if (CImGui::BeginTabItem("Situation")) {
                 drawSituationTab();
+                CImGui::EndTabItem();
+            }
+            if (CImGui::BeginTabItem("Armour List")) {
+                drawArmourList();
                 CImGui::EndTabItem();
             }
             if (CImGui::BeginTabItem("Player List")) {
@@ -351,6 +358,89 @@ namespace kbf {
         CImGui::PopStyleColor();
     }
 
+    void DebugTab::drawArmourList() {
+		CImGui::BeginChild("ArmourList");
+
+        static char filterBuffer[128] = "";
+        std::string filterStr{ filterBuffer };
+
+        CImGui::Spacing();
+        CImGui::PushItemWidth(-1);
+        CImGui::InputTextWithHint("##ArmourSearch", "Armour Name...", filterBuffer, IM_ARRAYSIZE(filterBuffer));
+        CImGui::PopItemWidth();
+        CImGui::Spacing();
+
+        CImGui::Spacing();
+        CImGui::Separator();
+        CImGui::Spacing();
+        CImGui::Spacing();
+
+        const std::vector<ArmourSet> armourSets = ArmourDataManager::get().getFilteredArmourSets(filterStr);
+        if (armourSets.size() == 0) {
+            constexpr char const* noArmourStr = "Armour Set Search Found Zero Results.";
+            preAlignCellContentHorizontal(noArmourStr);
+            CImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
+            CImGui::Text(noArmourStr);
+            CImGui::PopStyleColor();
+        }
+        else {
+            constexpr ImGuiTableFlags assignedPresetGridFlags =
+                ImGuiTableFlags_BordersInnerH
+                | ImGuiTableFlags_PadOuterX
+                | ImGuiTableFlags_Sortable
+                | ImGuiTableFlags_ScrollY;
+
+            constexpr ImGuiTableColumnFlags stretchNoSortFlags =
+                ImGuiTableColumnFlags_NoSort | ImGuiTableColumnFlags_WidthStretch;
+            constexpr ImGuiTableColumnFlags fixedNoSortFlags =
+                ImGuiTableColumnFlags_NoSort | ImGuiTableColumnFlags_WidthFixed;
+
+            CImGui::PushStyleVar(ImGuiStyleVar_CellPadding, LIST_PADDING);
+
+            CImGui::BeginTable("##AssignedPresetGridTable", 2, assignedPresetGridFlags);
+
+            CImGui::TableSetupColumn("", fixedNoSortFlags, 0.0f);
+            CImGui::TableSetupColumn("Armour", fixedNoSortFlags, 0.0f);
+            CImGui::TableSetupScrollFreeze(0, 1);
+            CImGui::TableHeadersRow();
+
+            CImGui::PopStyleVar();
+            CImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(LIST_PADDING.x, 0.0f));
+
+            constexpr float rowHeight = 40.0f;
+
+            for (const ArmourSet& armour : armourSets) {
+                CImGui::TableNextRow();
+
+                if (armour.name != ANY_ARMOUR_ID) {
+                    // Sex Marker
+                    CImGui::TableSetColumnIndex(0);
+                    ImVec2 cursorPos = CImGui::GetCursorPos();
+                    constexpr ImVec2 sexMarkerOffset = ImVec2(5.0f, 12.5f);
+                    CImGui::SetCursorPos(ImVec2(cursorPos.x + sexMarkerOffset.x, cursorPos.y + sexMarkerOffset.y));
+                    drawSexMarker(wsSymbolFont, !armour.female, false, true);
+                }
+
+                // Armour Name
+                CImGui::TableSetColumnIndex(1);
+                CImGui::PushFont(wsArmourFont, FONT_SIZE_DEFAULT_WILDS_ARMOUR);
+                CImGui::SetCursorPosY(CImGui::GetCursorPosY() + (rowHeight - CImGui::GetTextLineHeight()) * 0.5f);
+
+                std::string displayName = armour.name == ANY_ARMOUR_ID ? "Default" : armour.name;
+                if (armour.name == ANY_ARMOUR_ID) CImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.365f, 0.678f, 0.886f, 0.8f));
+                CImGui::Text(displayName.c_str());
+                if (armour.name == ANY_ARMOUR_ID) CImGui::PopStyleColor();
+                CImGui::PopFont();
+            }
+
+            CImGui::EndTable();
+
+            CImGui::PopStyleVar();
+        }
+
+		CImGui::EndChild();
+    }
+
     void DebugTab::drawPlayerList() {
         CImGui::BeginChild("PlayerList");
         
@@ -623,22 +713,19 @@ namespace kbf {
         CImGui::PopFont();
 
         // Npc name
-        std::string npcName = std::format("[{}] NPC (Not loaded)", info.index);
-        if (pInfo != nullptr) {
-			npcName = std::format("[{}] {}", info.index, getNpcName(
-                pInfo->npcID,
-                pInfo->armourInfo.body.has_value() ? pInfo->armourInfo.body.value() : ArmourList::DefaultArmourSet()));
-        }
+        std::string npcName = NpcDataManager::get().getNpcNameFromID(info.index);
+        if (npcName.empty()) npcName = "Unnamed NPC";
+        std::string npcNameStr = std::format("[{}] {}{}", info.index, npcName, pInfo == nullptr ? " (Not loaded)" : "");
 
         constexpr float npcNameSpacingAfter = 5.0f;
-        ImVec2 npcNameSize = CImGui::CalcTextSize(npcName.c_str());
+        ImVec2 npcNameSize = CImGui::CalcTextSize(npcNameStr.c_str());
         ImVec2 npcNamePos;
         npcNamePos.x = sexMarkerPos.x + sexMarkerSize.x + sexMarkerSpacingAfter;
         npcNamePos.y = pos.y + (selectableHeight - npcNameSize.y) * 0.5f;
 
         bool isVisible = info.visible;
         if (!isVisible) CImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
-        CImGui::GetWindowDrawList()->AddText(npcNamePos, CImGui::GetColorU32(ImGuiCol_Text), npcName.c_str());
+        CImGui::GetWindowDrawList()->AddText(npcNamePos, CImGui::GetColorU32(ImGuiCol_Text), npcNameStr.c_str());
 		if (!isVisible) CImGui::PopStyleColor();
 
         float endPos = CImGui::GetCursorScreenPos().x + CImGui::GetContentRegionAvail().x;
