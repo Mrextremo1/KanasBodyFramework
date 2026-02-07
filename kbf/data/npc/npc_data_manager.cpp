@@ -55,6 +55,10 @@ namespace kbf {
 		return data;
 	}
 
+	bool NpcDataManager::isPartnerNpcID(const std::string& npcStrID) {
+		return ALMA_NPC_IDS.contains(npcStrID) || GEMMA_NPC_IDS.contains(npcStrID) || ERIK_NPC_IDS.contains(npcStrID);
+	}
+
 	std::pair<NpcNamedTypeToIdsMap, NpcIdToNamedTypeMap> NpcDataManager::getNpcNamedIDs() {
 		NpcNamedTypeToIdsMap toIds{};
 		NpcIdToNamedTypeMap toName{};
@@ -63,18 +67,18 @@ namespace kbf {
 		// E.g. For alma, stuff like, lobby, on quest, character creation screen etc.
 		// TODO: Should probably verify these for cutscenes, etc.
 		toIds[NpcType::NPC_TYPE_GENERIC] = {};
-		toIds[NpcType::NPC_TYPE_ALMA]      = getValidIDsFromNpcPaths({ "NPC102_00_001", "NPC102_00_906", "NPC112_50_021" });                  // 8,  13,  529
-		toIds[NpcType::NPC_TYPE_GEMMA]     = getValidIDsFromNpcPaths({ "NPC102_00_010", "NPC112_50_009", "NPC112_50_012", "NPC112_50_022" }); // 10, 527, 528, 530
-		toIds[NpcType::NPC_TYPE_ERIK]      = getValidIDsFromNpcPaths({ "NPC101_00_002", "NPC111_50_023" });                                   // 0,  525
-		toIds[NpcType::NPC_TYPE_OLIVIA]    = getValidIDsFromNpcPaths({ "NPC102_00_007" });                                                    // 9
-		toIds[NpcType::NPC_TYPE_ROSSO]     = getValidIDsFromNpcPaths({ "NPC101_00_030" });                                                    // 6
-		toIds[NpcType::NPC_TYPE_ALESSA]    = getValidIDsFromNpcPaths({ "NPC112_00_021" });													  // 27
-		toIds[NpcType::NPC_TYPE_MINA]      = getValidIDsFromNpcPaths({ "NPC112_00_014" });                                                    // 25
-		toIds[NpcType::NPC_TYPE_KAI]       = getValidIDsFromNpcPaths({ "NPC111_00_016" });                                                    // 17
-		toIds[NpcType::NPC_TYPE_GRIFFIN]   = getValidIDsFromNpcPaths({ "NPC111_00_011" });                                                    // 15
-		toIds[NpcType::NPC_TYPE_NIGHTMIST] = getValidIDsFromNpcPaths({ "NPC112_00_024" });                                                    // 29
-		toIds[NpcType::NPC_TYPE_FABIUS]    = getValidIDsFromNpcPaths({ "NPC101_00_006" });                                                    // 4
-		toIds[NpcType::NPC_TYPE_NADIA]     = getValidIDsFromNpcPaths({ "NPC102_00_041" });                                                    // 12
+		toIds[NpcType::NPC_TYPE_ALMA]      = getValidIDsFromNpcPaths(std::vector(ALMA_NPC_IDS.begin(),  ALMA_NPC_IDS.end()));                  
+		toIds[NpcType::NPC_TYPE_GEMMA]     = getValidIDsFromNpcPaths(std::vector(GEMMA_NPC_IDS.begin(), GEMMA_NPC_IDS.end())); 
+		toIds[NpcType::NPC_TYPE_ERIK]      = getValidIDsFromNpcPaths(std::vector(ERIK_NPC_IDS.begin(),  ERIK_NPC_IDS.end()));                                   
+		toIds[NpcType::NPC_TYPE_OLIVIA]    = getValidIDsFromNpcPaths({ "NPC102_00_007" });  // 9
+		toIds[NpcType::NPC_TYPE_ROSSO]     = getValidIDsFromNpcPaths({ "NPC101_00_030" });  // 6
+		toIds[NpcType::NPC_TYPE_ALESSA]    = getValidIDsFromNpcPaths({ "NPC112_00_021" });	// 27
+		toIds[NpcType::NPC_TYPE_MINA]      = getValidIDsFromNpcPaths({ "NPC112_00_014" });  // 25
+		toIds[NpcType::NPC_TYPE_KAI]       = getValidIDsFromNpcPaths({ "NPC111_00_016" });  // 17
+		toIds[NpcType::NPC_TYPE_GRIFFIN]   = getValidIDsFromNpcPaths({ "NPC111_00_011" });  // 15
+		toIds[NpcType::NPC_TYPE_NIGHTMIST] = getValidIDsFromNpcPaths({ "NPC112_00_024" });  // 29
+		toIds[NpcType::NPC_TYPE_FABIUS]    = getValidIDsFromNpcPaths({ "NPC101_00_006" });  // 4
+		toIds[NpcType::NPC_TYPE_NADIA]     = getValidIDsFromNpcPaths({ "NPC102_00_041" });  // 12
 
 		// Reverse mapping
 		for (const auto& [type, ids] : toIds) {
