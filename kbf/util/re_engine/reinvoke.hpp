@@ -20,6 +20,8 @@
 // Screw you, windows api.
 #undef ERROR
 
+using REApi = reframework::API;
+
 namespace kbf {
 
     enum class InvokeReturnType {
@@ -71,7 +73,7 @@ namespace kbf {
 	}
 
     template<typename castType>
-    inline castType* REInvokeStatic(
+    inline castType REInvokeStatic(
         std::string callerTypeName,
         std::string methodName,
         std::vector<void*> args,
@@ -83,7 +85,7 @@ namespace kbf {
             DEBUG_STACK.push(std::format("Failed to fetch caller type definition: {}", callerTypeName), DebugStack::Color::COL_ERROR);
         }
         #endif
-        if (callerType == nullptr) return nullptr;
+        if (callerType == nullptr) return castType{};
 
         reframework::API::Method* callerMethod = callerType->find_method(methodName);
         #if defined(ENABLE_REINVOKE_LOGGING) && defined(REINVOKE_LOGGING_LEVEL_NULL) && defined(REINVOKE_LOGGING_LEVEL_ERROR)
@@ -91,7 +93,7 @@ namespace kbf {
             DEBUG_STACK.push(std::format("Failed to find method {}. {} has the following properties:\n{}", methodName, callerTypeName, reTypePropertiesToString(callerType)), DebugStack::Color::COL_ERROR);
         }
         #endif
-		if (callerMethod == nullptr) return nullptr;
+        if (callerMethod == nullptr) return castType{};
         
         reframework::InvokeRet ret = callerMethod->invoke(nullptr, args);
 
@@ -118,37 +120,45 @@ namespace kbf {
             return *reinterpret_cast<castType*>(&ret.d);
         }
 
-        return *reinterpret_cast<castType*>((void*)0);
+        return castType{};
     }
 
     template<typename castType>
     inline castType* REFieldPtr(
         reframework::API::ManagedObject* caller, 
-        std::string fieldName,
-		bool isValueType = false
+        std::string fieldName
     ) {
-        // TODO: Sometimes this seems to fail. I think this might be due to not considering an fieldPtr offset, or valueType
-        //         (although the reframework api should handle this???). If doesn't work, just read the raw memory ptr for now.
-
-        #if defined(ENABLE_REINVOKE_LOGGING) && defined(REINVOKE_LOGGING_LEVEL_NULL) && defined(REINVOKE_LOGGING_LEVEL_ERROR)
-        if (caller->get_type_definition() == nullptr) {
+        REApi::TypeDefinition* callerTypeDef = caller->get_type_definition();
+        if (callerTypeDef == nullptr) {
             DEBUG_STACK.push(std::format("Failed to fetch caller type definition for field {}", fieldName), DebugStack::Color::COL_ERROR);
+            return nullptr;
         }
-        else if (caller->get_type_definition()->find_field(fieldName) == nullptr) {
+
+		bool isValueType_caller = callerTypeDef->is_valuetype();
+        bool callerIsManagedObj = caller->is_managed_object();
+
+		REApi::Field* field = callerTypeDef->find_field(fieldName);
+        if (field == nullptr) {
             DEBUG_STACK.push(std::format("Failed to find field {}. Caller object has the following fields and methods:\n{}", fieldName, reObjectPropertiesToString(caller)), DebugStack::Color::COL_ERROR);
+            return nullptr;
         }
-        #endif
 
-        castType* ret = caller->get_field<castType>(fieldName, isValueType);
-        #if defined(ENABLE_REINVOKE_LOGGING) && defined(REINVOKE_LOGGING_LEVEL_NULL) && defined(REINVOKE_LOGGING_LEVEL_WARNING)
-        if (ret == nullptr) {
-            DEBUG_STACK.push(std::format("{} REField: {} returned nullptr", REINVOKE_LOG_TAG, fieldName), DebugStack::Color::WARNING);
+		REApi::TypeDefinition* fieldTypeDef = field->get_type();
+		if (fieldTypeDef == nullptr) {
+            DEBUG_STACK.push(std::format("Failed to fetch field type definition for field {}", fieldName), DebugStack::Color::COL_ERROR);
+            return nullptr;
         }
-        #endif
 
-        if (ret != nullptr && !isValueType) ret = *(castType**)ret;
+		// Not sure if the managed object check is necessary here, but better safe than sorry
+        uint32_t offset = field->get_offset_from_fieldptr();
+		if (!isValueType_caller || callerIsManagedObj) offset += callerTypeDef->get_fieldptr_offset();
 
-        return ret;
+        bool isValueType_test = fieldTypeDef->is_valuetype();
+
+		castType* data = (castType*)((uintptr_t)caller + offset);
+
+        if (isValueType_test) return data;
+		return *(castType**)data;
 	}
 
     // TODO: I think this can cause a massive memory leak when the length returned is valid, but huge.
@@ -156,13 +166,10 @@ namespace kbf {
     inline std::string REFieldStr(
         reframework::API::ManagedObject* caller,
         std::string fieldName,
-        REStringType stringType,
-        bool isValueType = false
+        REStringType stringType
     ) {
-        void* data = REFieldPtr<void>(caller, fieldName, isValueType);
+        void* data = REFieldPtr<void>(caller, fieldName);
 		if (data == nullptr) return "ERROR: REFieldStr Field Returned Nullptr!";
-
-        //if (!isValueType) data = *(void**)data;
 
         switch (stringType) {
         case REStringType::SYSTEM_STRING: {
@@ -281,6 +288,34 @@ namespace kbf {
 		return cvt_utf16_to_utf8(utf16);
     }
 
+    inline std::string REInvokeStaticStr(
+        std::string callerTypeName,
+        std::string methodName,
+        std::vector<void*> args
+    ) {
+        REApi::Method* fn = REApi::get()->tdb()->find_method(callerTypeName, methodName);
+        if (fn == nullptr) {
+            DEBUG_STACK.push(std::format("{} REInvokeStaticStr: Failed to find method {}::{}", REINVOKE_LOG_TAG, callerTypeName, methodName), DebugStack::Color::COL_ERROR);
+			return "ERR: Null Method!";
+        }
+
+        reframework::InvokeRet ret = fn->invoke(nullptr, args);
+
+        REApi::ManagedObject* managedStr = (REApi::ManagedObject*)ret.ptr;
+        if (managedStr == nullptr) {
+            DEBUG_STACK.push(std::format("{} Return value was nullptr for call: {}::{}", REINVOKE_LOG_TAG, callerTypeName, methodName), DebugStack::Color::COL_WARNING);
+            return "ERR: Null ManagedStr!";
+        }
+
+        int32_t length = *(int32_t*)((uint8_t*)managedStr + /*offset to m_stringLength*/ 0x10);
+        const char16_t* chars = (const char16_t*)((uint8_t*)managedStr + /*offset to firstChar*/ 0x14);
+        if (!chars || length <= 0) return {};
+
+        // Convert UTF-16 -> UTF-8
+        std::u16string utf16(chars, chars + length);
+        return cvt_utf16_to_utf8(utf16);
+    }
+
     inline void REInvokeVoid(
         reframework::API::ManagedObject* caller,
         std::string methodName,
@@ -301,5 +336,46 @@ namespace kbf {
             DEBUG_STACK.push(std::format("{} REInvokeVoid: {} threw an exception!", REINVOKE_LOG_TAG, methodName), DebugStack::Color::COL_DEBUG);
         }
 	}
+
+    inline int REEnum(
+        reframework::API::TypeDefinition* typeDef,
+        std::string name,
+        bool& success
+    ) {
+        if (typeDef == nullptr) {
+            DEBUG_STACK.push(std::format("Recieved null type definition for enum value @ {}", name), DebugStack::Color::COL_ERROR);
+            success = false;
+            return 0;
+        }
+
+        bool isEnumType = typeDef->is_enum();
+        if (!isEnumType) {
+            DEBUG_STACK.push(std::format("Attempted to fetch enum {} from {}, but the type is not an enum", name, typeDef->get_full_name()), DebugStack::Color::COL_ERROR);
+            success = false;
+            return 0;
+		}
+
+        REApi::Field* field = typeDef->find_field(name);
+        if (field == nullptr) {
+            DEBUG_STACK.push(std::format("Failed to find enum value {} for enum {}", name, typeDef->get_full_name()), DebugStack::Color::COL_ERROR);
+            success = false;
+            return 0;
+        }
+
+        void* data = field->get_init_data();
+        int castData = 0;
+
+        switch (typeDef->get_underlying_type()->get_valuetype_size()) {
+        case 1: { castData = static_cast<int>(*(int8_t*)data);  break; }
+        case 2: { castData = static_cast<int>(*(int16_t*)data); break; }
+        case 4: { castData = static_cast<int>(*(int32_t*)data); break; }
+        case 8: { castData = static_cast<int>(*(int64_t*)data); break; }
+        default: DEBUG_STACK.push(std::format("Enum value {} of {} has unsupported underlying data size, it will be read as 0.", name, typeDef->get_full_name()), DebugStack::Color::COL_WARNING);
+        }
+
+        success = true;
+        return castData;
+    }
+
 
 }
