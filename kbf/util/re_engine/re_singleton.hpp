@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kbf/util/re_engine/check_re_ptr_validity.hpp>
 #include <kbf/debug/debug_stack.hpp>
 #include <reframework/API.hpp>
 
