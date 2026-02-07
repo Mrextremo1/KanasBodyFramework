@@ -21,7 +21,3 @@
 - [Single-Time Imports and Exports (.kbf)](./4.%20Sharing%20Presets/3.%20Single-Time%20Imports%20and%20Exports%20(.kbf).md)
 
 ---
-
-# Advanced Guides
-
-- [Manually Adding Support for New Armour Sets](./5.%20Advanced%20Guides/1.%20Manually%20Adding%20Support%20for%20New%20Armour%20Sets.md)

@@ -34,7 +34,6 @@ namespace kbf {
 		void drawTutorials_CreatingPlayerOverrides();
 		void drawTutorials_MigratingFromFbs();
 		void drawTutorials_SharingPresets();
-		void drawTutorials_ManuallyUpdatingKBF();
 
 		void drawChangelogTab();
 
