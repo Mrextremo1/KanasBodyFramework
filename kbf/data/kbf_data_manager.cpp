@@ -83,6 +83,9 @@ namespace kbf {
         presets.clear();
         presetGroups.clear();
         playerOverrides.clear();
+
+        NpcDataManager::get().uninitialize();
+        ArmourDataManager::get().uninitialize();
     }
 
     void KBFDataManager::reloadData() {

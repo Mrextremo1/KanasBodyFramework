@@ -62,6 +62,10 @@ namespace kbf {
 		}
 
 		void initialize();
+		void uninitialize() { initialized = false; }
+		void reinitialize() { uninitialize(); initialize(); }
+
+		static bool isPartnerNpcID(const std::string& npcStrID);
 
 	private:
 		NpcDataManager() = default;
@@ -69,6 +73,10 @@ namespace kbf {
 
 		NpcDataMap npcDataMappings;
 		NpcDataMap getNpcData();
+
+		inline const static std::unordered_set<std::string> ALMA_NPC_IDS  = { "NPC102_00_001", "NPC102_00_906", "NPC112_50_021" };					 // 8,  13,  529
+		inline const static std::unordered_set<std::string> GEMMA_NPC_IDS = { "NPC102_00_010", "NPC112_50_009", "NPC112_50_012", "NPC112_50_022" };	 // 10, 527, 528, 530
+		inline const static std::unordered_set<std::string> ERIK_NPC_IDS  = { "NPC101_00_002", "NPC111_50_023" };									 // 0,  525
 
 		NpcNamedTypeToIdsMap npcTypeToIdMappings;
 		NpcIdToNamedTypeMap idToNpcTypeMappings;

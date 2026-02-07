@@ -48,6 +48,8 @@ namespace kbf {
 		static ArmourDataManager& get();
 
 		void initialize();
+		void uninitialize() { initialized = false; }
+		void reinitialize() { uninitialize(); initialize(); }
 		std::vector<ArmourSet> getFilteredArmourSets(const std::string& filter);
 		ArmourSet getArmourSetFromArmourID(const ArmorSetID& setId) const;
 		ArmourSet getArmourSetFromNpcPrefab(const std::string& npcPrefabPath, bool female) const;
