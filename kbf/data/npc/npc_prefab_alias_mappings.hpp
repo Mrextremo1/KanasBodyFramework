@@ -68,6 +68,7 @@ namespace kbf {
 			} },
 
 			// NPCs without variants
+			{ "NPC101_00_003", { "[NPC] Nata's Sild Poncho" } },
 			{ "NPC102_00_041", { "[NPC] Nadia's Outfit" } },
 			{ "NPC202_01_018", { "[NPC] Diva's Outfit" } },
 			{ "NPC101_00_009", { "[NPC] Werner's Outfit" } },
