@@ -132,7 +132,9 @@ namespace kbf {
 
         CImGui::SetNextWindowSize(ImVec2(700, 800), ImGuiCond_FirstUseEver);
         CImGui::SetNextWindowSizeConstraints(ImVec2(700, 500), ImVec2(FLT_MAX, FLT_MAX));
-        CImGui::Begin("Kana's Body Framework", open, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoCollapse);
+
+		std::string windowName = std::format("Kana's Body Framework v{}###KBFMainWindow", KBF_VERSION);
+        CImGui::Begin(windowName.c_str(), open, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoCollapse);
         CImGui::PushFont(mainFont, FONT_SIZE_DEFAULT_MAIN);
 
         drawMenuBar();
