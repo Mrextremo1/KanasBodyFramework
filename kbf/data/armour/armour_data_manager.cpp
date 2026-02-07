@@ -221,6 +221,8 @@ namespace kbf {
 		size_t ignoredCnt = getNpcArmorDataDefaultSelectors(cNpcCatalogHolder, map, false);
 		ignoredCnt        = getNpcArmorDataDefaultSelectors(cNpcCatalogHolder, map, true);
 
+		DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_INFO, "Attempting to fetch unqiue NPC Armor Data...");
+
 		getNpcArmorDataUniqueSelectors(cNpcCatalogHolder, map);
 
 		DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_SUCCESS, "Successfully aliased {} NPC prefabs to armor sets!", map.size());
@@ -245,6 +247,8 @@ namespace kbf {
 			static REApi::ManagedObject* td_NpcDefID = REApi::get()->typeof("app.NpcDef.ID");
 			REApi::ManagedObject* boxedEnumValue = REInvokeStaticPtr<REApi::ManagedObject>("System.Enum", "InternalBoxEnum(System.RuntimeType, System.Int64)", { (void*)td_NpcDefID, (void*)i });
 			std::string npcStrID = REInvokeStaticStr("System.Enum", "GetName(System.Type, System.Object)", { (void*)td_NpcDefID, (void*)boxedEnumValue });
+			if (NpcDataManager::isPartnerNpcID(npcStrID)) continue; // Handle these in the unique selector pass as bits here aren't reliable.
+
 			std::string npcName = NpcDataManager::get().getNpcNameFromID(i);
 
 			REApi::ManagedObject* NpcVisualBase = REFieldPtr<REApi::ManagedObject>(NpcResidentPackage, "_VisualSetting");
@@ -312,21 +316,29 @@ namespace kbf {
 	}
 
 	void ArmourDataManager::getNpcArmorDataUniqueSelectors(REApi::ManagedObject* cNpcCatalogHolder, NpcPrefabToArmorSetMap& map) {
-		// TODO: Make sure to OVERWRITE any existing entries here as the non unique selectors before this pass are not reliable.
-
-		// 2. UNIQUE visuals 
+		// These actually mirror the UNIQUE_VISUAL_Fixed IDs enum names, but just hardcode for now.
 		//  Note: app.NpcDef.UNIQUE_VISUAL_Fixed mappings:
 		//   2: Alma
 		//   3: Erik
 		//   4: Gemma
 		// Update Note: If any other partners are added, you'll have to specifying their mappings here
-		for (size_t i = 2; i <= NPC_UNIQUE_PREFAB_SETS_FETCH_CAP; i++) {
-			for (size_t j = 0; j < NPC_UNIQUE_PREFAB_VARIANTS_FETCH_CAP; j++) {
-				REApi::ManagedObject* NpcVisualSetting = REInvokePtr<REApi::ManagedObject>(cNpcCatalogHolder, "getCustomVari(app.NpcDef.UNIQUE_VISUAL_Fixed, System.Int32)", { (void*)i, (void*)j });
+
+		std::unordered_map<size_t, std::string> uniqueVisualIdxToPartnerID{
+			{ 2, "NPC102_00_001" },
+			{ 3, "NPC101_00_002" },
+			{ 4, "NPC102_00_010" }
+		};
+
+		for (const auto& [idx, partnerStrID] : uniqueVisualIdxToPartnerID) {
+			for (size_t variantIdx = 0; variantIdx < NPC_UNIQUE_PREFAB_VARIANTS_FETCH_CAP; variantIdx++) {
+				REApi::ManagedObject* NpcVisualSetting = REInvokePtr<REApi::ManagedObject>(cNpcCatalogHolder, "getCustomVari(app.NpcDef.UNIQUE_VISUAL_Fixed, System.Int32)", { (void*)idx, (void*)variantIdx });
 				std::string prefabPath = getPrefabFromVisualSetting(NpcVisualSetting);
 				if (prefabPath.empty()) continue;
 
-				DEBUG_STACK.fpush<LOG_TAG>("NPC UNIQUE_VISUAL_FIXED Idx {}-{} has prefab path: {}", i, j, prefabPath);
+				size_t gender = REInvoke<size_t>(NpcVisualSetting, "get_Gender()", {}, InvokeReturnType::DWORD);
+
+				addPrefabToArmorSetMap(map, partnerStrID, partnerStrID, prefabPath, variantIdx, gender == 1, true);
+
 			}
 		}
 	}
@@ -340,12 +352,7 @@ namespace kbf {
 		bool female,
 		bool verbose
 	) {
-		// TODO: Ignore partner NPCs here to not generate shit mappings
-
 		if (prefabPath.empty()) return false; // No prefab to map
-		if (npcName == "Amone") {
-			int test = 1;
-		}
 
 		// A subset of npcs will be chosen to generate mappings from.
 		std::string prefabAlias = NpcPrefabAliasMappings::getPrefabAlias(npcStrID, variant);
