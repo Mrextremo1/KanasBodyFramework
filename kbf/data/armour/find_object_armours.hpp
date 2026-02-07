@@ -56,10 +56,10 @@ namespace kbf {
             normalizedId[3] = normalizer;
 
             ArmourSet set = ArmourList::getArmourSetFromId(normalizedId);
-            if (set != ArmourList::DefaultArmourSet()) {
+            if (set != ArmourSet::DEFAULT) {
                 // Players in multiplayer also have loooaaads of other objects present, but the first seems to always be the right one.
 				size_t index = static_cast<size_t>(piece - 1);
-                if (out[index] != ArmourList::DefaultArmourSet()) {
+                if (out[index] != ArmourSet::DEFAULT) {
 					//DEBUG_STACK.push(std::format("Found collision with {} -> {}", out[index].name, set.name), DebugStack::Color::WARNING);
                     continue;
 				}
@@ -76,9 +76,9 @@ namespace kbf {
         REApi::ManagedObject* transform,
         bool female
     ) {
-        // Array of 6 ArmourList::DefaultArmourSet();
+        // Array of 6 ArmourSet::DEFAULT;
         std::array<ArmourSet, 6> foundArmours{};
-        foundArmours.fill(ArmourList::DefaultArmourSet());
+        foundArmours.fill(ArmourSet::DEFAULT);
 
         std::vector<std::string> armours = findArmourObjectsInTransformTree(transform);
 		ArmourPieceFlags foundFlags = scanArmourList(armours, '3', foundArmours);
@@ -105,7 +105,7 @@ namespace kbf {
         const bool female,
         ArmourPiece piece
     ) {
-		if (piece == ArmourPiece::AP_SET) return ArmourList::DefaultArmourSet();
+		if (piece == ArmourPiece::AP_SET) return ArmourSet::DEFAULT;
 
         std::vector<std::string> armours = findArmourObjectsInTransformTree(transform);
 
@@ -131,26 +131,26 @@ namespace kbf {
 			normalizedId[3] = '3';
 
             ArmourSet set = ArmourList::getArmourSetFromId(normalizedId);
-            if (set != ArmourList::DefaultArmourSet()) return set;
+            if (set != ArmourSet::DEFAULT) return set;
 		}
 
-        return ArmourList::DefaultArmourSet();
+        return ArmourSet::DEFAULT;
     }
 
     inline ArmourSet findFirstNPCArmourInObjectFromList(
         REApi::ManagedObject* transform
     ) {
-        if (transform == nullptr) return ArmourList::DefaultArmourSet();
+        if (transform == nullptr) return ArmourSet::DEFAULT;
 
         std::vector<std::string> armours = findArmourObjectsInTransformTree(transform);
         for (const std::string& armourId : armours) {
             if (armourId[3] == '4') {
                 ArmourSet set = ArmourList::getArmourSetFromId(armourId);
-                if (set != ArmourList::DefaultArmourSet()) return set;
+                if (set != ArmourSet::DEFAULT) return set;
             }
         }
 
-        return ArmourList::DefaultArmourSet();
+        return ArmourSet::DEFAULT;
     }
 
 	inline std::vector<std::string> findObjectArmoursExhaustive(REApi::ManagedObject* transform) {

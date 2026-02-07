@@ -1270,7 +1270,7 @@ namespace kbf {
         CImGui::Toggle(" Hide Weapon ", &(**preset).hideWeapon, ImGuiToggleFlags_Animated);
         CImGui::SameLine();
 
-        bool disableHidePart = (**preset).armour == ArmourList::DefaultArmourSet();
+        bool disableHidePart = (**preset).armour == ArmourSet::DEFAULT;
         if (disableHidePart) CImGui::BeginDisabled();
         if (CImGui::Button("Show / Hide Part", ImVec2(CImGui::GetContentRegionAvail().x, 0))) {
             openPartOverridePanel();
@@ -1470,7 +1470,7 @@ namespace kbf {
         CImGui::Separator();
         CImGui::Spacing();
 
-        bool disableHidePart = (**preset).armour == ArmourList::DefaultArmourSet();
+        bool disableHidePart = (**preset).armour == ArmourSet::DEFAULT;
         if (disableHidePart) CImGui::BeginDisabled();
         if (CImGui::Button("Show / Hide / Edit Material", ImVec2(CImGui::GetContentRegionAvail().x, 0))) {
             openMaterialOverridePanel();

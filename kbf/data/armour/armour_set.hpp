@@ -16,6 +16,8 @@ namespace kbf {
 		bool operator<(const ArmourSet& other) const {
 			return std::tie(female, name) < std::tie(other.female, other.name);
 		}
+
+		const static ArmourSet DEFAULT;
 	};
 
 

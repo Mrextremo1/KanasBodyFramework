@@ -31,14 +31,6 @@ namespace kbf {
 
         auto& api = REApi::get();
 
-        // Main Menu Singletons
-        //sceneManager = api->get_native_singleton("via.SceneManager");
-        //assert(sceneManager != nullptr && "Could not get sceneManager!");
-
-        // Normal Gameplay Singletons
-        //npcManager = api->get_managed_singleton("app.NpcManager");
-        //assert(npcManager != nullptr && "Could not get NPC Manager");
-
         kbf::HookManager::add_tdb("app.NpcCharacterCore", "onWarp",        onNpcChangeStateHook, nullptr, false);
         kbf::HookManager::add_tdb("app.NpcCharacterCore", "setupHeadCtrl", onNpcChangeStateHook, nullptr, false);
     }
@@ -59,7 +51,7 @@ namespace kbf {
         // Additionally consider one extra 'preview preset' for those currently being edited in the GUI
         const Preset* previewedPreset = dataManager.getPreviewedPreset();
         const bool hasPreview = previewedPreset != nullptr;
-        const bool applyPreviewUnconditional = hasPreview && previewedPreset->armour == ArmourList::DefaultArmourSet();
+        const bool applyPreviewUnconditional = hasPreview && previewedPreset->armour == ArmourSet::DEFAULT;
 
 		// Only apply to first n NPCs based on distance to camera
         const int maxNPCsToApply = std::max<int>(dataManager.settings().maxConcurrentApplications, 0);
@@ -357,7 +349,7 @@ namespace kbf {
         pInfo.armourInfo.body = findFirstNPCArmourInObjectFromList(info.pointers.Transform);
         pInfo.npcID = getNpcID(gameObjName, pInfo.armourInfo.body.value());
 
-        return pInfo.armourInfo.body.value() != ArmourList::DefaultArmourSet();
+        return pInfo.armourInfo.body.value() != ArmourSet::DEFAULT;
     }
 
     void NpcTracker::fetchNpcs_NormalGameplay() {
@@ -644,7 +636,7 @@ namespace kbf {
     bool NpcTracker::fetchNpc_EquippedArmourSet(const NpcInfo& info, PersistentNpcInfo& pInfo) {
         if (info.pointers.Transform == nullptr) return false;
         
-        pInfo.armourInfo.body = ArmourList::DefaultArmourSet();
+        pInfo.armourInfo.body = ArmourSet::DEFAULT;
 
         // Npc will use a special npc armour set, i.e ch04_XXX_XXXX, that can be taken directly from this path.
         if (!info.prefabPath.empty()) {
@@ -662,7 +654,7 @@ namespace kbf {
 
             // No npcs actually wear helms lol
             const ArmourSet helmPlaceholder{ "Alloy 0", false };
-			if (pInfo.armourInfo.helm == helmPlaceholder) pInfo.armourInfo.helm = ArmourList::DefaultArmourSet();
+			if (pInfo.armourInfo.helm == helmPlaceholder) pInfo.armourInfo.helm = ArmourSet::DEFAULT;
         }
 
         std::string gameObjName = "";
@@ -671,7 +663,7 @@ namespace kbf {
 
 		pInfo.npcID = getNpcID(gameObjName, pInfo.armourInfo.body.value());
 
-        return pInfo.armourInfo.body.value() != ArmourList::DefaultArmourSet();
+        return pInfo.armourInfo.body.value() != ArmourSet::DEFAULT;
     }
 
     bool NpcTracker::fetchNpc_Bones(const NpcInfo& info, PersistentNpcInfo& pInfo) {
@@ -819,7 +811,7 @@ namespace kbf {
             || SituationWatcher::inSituation(isinQuestPlayingasHost);
         if (dataManager.settings().enableDuringQuestsOnly && !inQuest) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 
-        REApi::ManagedObject* app_cNpcContextHolder = REFieldPtr<REApi::ManagedObject>(app_NpcCharacterCore, "_ContextHolder", false);
+        REApi::ManagedObject* app_cNpcContextHolder = REFieldPtr<REApi::ManagedObject>(app_NpcCharacterCore, "_ContextHolder");
         if (app_cNpcContextHolder == nullptr) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 
         REApi::ManagedObject* app_cNpcContext = REInvokePtr<REApi::ManagedObject>(app_cNpcContextHolder, "get_Npc", {});

@@ -301,7 +301,7 @@ namespace kbf {
 	}
 
 	inline ArmourSet getArmourSetFromFBSidx(size_t idx, bool body) {
-		if (!fbsArmourExists(idx, body)) return ArmourList::DefaultArmourSet();
+		if (!fbsArmourExists(idx, body)) return ArmourSet::DEFAULT;
 		std::string armourId = body ? fbsBodyAmoursByIdx[idx] : fbsLegsAmoursByIdx[idx];
 
 		return ArmourList::getArmourSetFromId(armourId);

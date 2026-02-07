@@ -86,7 +86,7 @@ namespace kbf {
 
 		if (hasBaseMesh) {
 			getParts(baseMesh, baseParts);
-			ArmourSetWithCharacterSex armourWithSex{ ArmourList::DefaultArmourSet(), female};
+			ArmourSetWithCharacterSex armourWithSex{ ArmourSet::DEFAULT, female};
 			dataManager.partCacheManager().cache(armourWithSex, baseParts, ArmourPiece::AP_SET);
 		}
 		if (hasHelmMesh) {

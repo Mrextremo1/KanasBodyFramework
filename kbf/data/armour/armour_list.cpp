@@ -1,4 +1,5 @@
 ﻿#include <kbf/data/armour/armour_list.hpp>
+#include <kbf/data/armour/armour_data_manager.hpp>
 
 #include <kbf/util/string/to_lower.hpp>
 
@@ -34,7 +35,7 @@ namespace kbf {
     }
 
     ArmourSet ArmourList::getArmourSetFromId(const std::string& id, ArmourPiece* piece) {
-        if (id.empty()) return DefaultArmourSet();
+        if (id.empty()) return ArmourSet::DEFAULT;
 
         for (const auto& [set, armourId] : ACTIVE_MAPPING) {
             bool found = false;
@@ -48,7 +49,7 @@ namespace kbf {
                 
             if (found) return set;
         }
-        return DefaultArmourSet();
+        return ArmourSet::DEFAULT;
 	}
 
     ArmourID ArmourList::getArmourIdFromSet(const ArmourSet& set) {
@@ -85,7 +86,7 @@ namespace kbf {
 
 	const ArmourMapping ArmourList::FALLBACK_MAPPING = {
         // Name                          // Female?  // Helm ID         // Body ID       // Arms ID       // Coil ID       // Legs ID       // Slinger ID
-        { ArmourList::DefaultArmourSet()           , { ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID   } },
+        { ArmourSet::DEFAULT             , { ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID  , ANY_ARMOUR_ID   } },
         { { "Innerwear 0"                , false } , { ""             , "ch03_002_0002", "ch03_002_0001", "ch03_002_0005", "ch03_002_0004", "ch03_002_0006" } },
         { { "Innerwear 0"                , true  } , { ""             , "ch03_002_0012", "ch03_002_0011", "ch03_002_0015", "ch03_002_0014", "ch03_002_0016" } },
         { { "Innerwear 1"                , false } , { ""             , "ch03_002_1002", "ch03_002_1001", "ch03_002_1005", "ch03_002_1004", "ch03_002_1006" } },

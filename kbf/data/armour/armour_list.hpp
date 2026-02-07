@@ -21,8 +21,6 @@ namespace kbf {
         static ArmourID getArmourIdFromSet(const ArmourSet& set);
         static std::string getArmourId(const ArmourSet& set, ArmourPiece piece, bool female);
 
-        static ArmourSet DefaultArmourSet() { return ArmourSet{ ANY_ARMOUR_ID, false }; }
-
         const static ArmourMapping FALLBACK_MAPPING;
         static ArmourMapping ACTIVE_MAPPING;
 
