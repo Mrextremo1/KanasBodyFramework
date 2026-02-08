@@ -51,10 +51,10 @@ namespace kbf {
 		const std::set<OverrideMaterial> matOverrides = preset->getPieceSettings(piece).materialOverrides;
 		// TODO: I Hate literally all of this OverrideMaterial code, but i cba to refactor it
 		// Do a shitty map based on name so subsequent searches are faster - this is a big performance bottleneck
-		const std::unordered_map<std::pair<size_t, std::string>, const OverrideMaterial*, PairHash> matOverridesLUT = [&matOverrides]() {
-			std::unordered_map<std::pair<size_t, std::string>, const OverrideMaterial*, PairHash> lut;
+		const std::unordered_map<std::string, const OverrideMaterial*> matOverridesLUT = [&matOverrides]() {
+			std::unordered_map<std::string, const OverrideMaterial*> lut;
 			for (const auto& mat : matOverrides) {
-				lut[{ mat.material.index, mat.material.name }] = &mat;
+				lut[mat.material.name] = &mat;
 			}
 			return lut;
 		}();
@@ -92,7 +92,7 @@ namespace kbf {
 		// Only mask out visible items
 		for (const auto& [_, mat] : *targetMaterials) {
 			BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Material Apply - Process Overrides - Mat Search");
-			const auto it = matOverridesLUT.find({ mat.index, mat.name });
+			const auto it = matOverridesLUT.find(mat.name);
 			END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Material Apply - Process Overrides - Mat Search");
 			if (it == matOverridesLUT.end()) continue;
 
