@@ -16,6 +16,36 @@ namespace kbf {
         return REInvokeStaticStr("via.gui.message", "get(System.Guid, via.Language)", { (void*)&guid, (void*)language });
     }
 
+    inline std::string REInvokeGuid(
+        reframework::API::ManagedObject* caller,
+        std::string methodName,
+        std::vector<void*> args,
+        LocalizationLanguage language = LocalizationLanguage::Invalid
+    ) {
+        #if defined(ENABLE_REINVOKE_LOGGING) && defined(REINVOKE_LOGGING_LEVEL_NULL) && defined(REINVOKE_LOGGING_LEVEL_ERROR)
+        if (caller->get_type_definition() == nullptr) {
+            DEBUG_STACK.push(std::format("Failed to fetch function type definition for method {}", methodName), DebugStack::Color::COL_ERROR);
+        }
+        else if (caller->get_type_definition()->find_method(methodName) == nullptr) {
+            DEBUG_STACK.push(std::format("Failed to find method {}. Caller object has the following fields and methods:\n{}", methodName, reObjectPropertiesToString(caller)), DebugStack::Color::COL_ERROR);
+        }
+        #endif
+
+        reframework::InvokeRet ret = caller->invoke(methodName, args);
+
+        if (ret.exception_thrown) {
+            DEBUG_STACK.push(std::format("{} REInvokeGuid: {} threw an exception!", REINVOKE_LOG_TAG, methodName), DebugStack::Color::COL_DEBUG);
+        }
+
+        Guid guid;
+		std::memcpy(&guid, ret.bytes.data(), sizeof(Guid));
+
+        if (language == LocalizationLanguage::Invalid) 
+            return GuidToString(guid);
+		else
+			return GuidToLocalizedString(guid, language);
+    }
+
     // Extension for convenient GUID parsing
     inline std::string REInvokeGuidStatic(
         std::string callerTypeName,
