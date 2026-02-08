@@ -1156,7 +1156,6 @@ namespace kbf {
 
                 // Unique ID for row click
                 std::string selectableID = std::format("##Selectable_{}_{}", label, mat.index);
-                DEBUG_STACK.push(selectableID);
 
                 bool pressed = CImGui::Selectable(selectableID.c_str(), false,
                     ImGuiSelectableFlags_SpanAllColumns,
