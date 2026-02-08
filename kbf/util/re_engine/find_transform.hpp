@@ -61,5 +61,28 @@ namespace kbf {
 		return ptr;
 	}
 
+	inline std::vector<REApi::ManagedObject*> getAllTransformComponents(
+		REApi::ManagedObject* gameobject
+	) {
+		REApi::ManagedObject* transformType = REApi::get()->typeof("via.GameObject");
+		if (transformType == nullptr) return {};
+
+		REApi::ManagedObject* compArr = REInvokePtr<REApi::ManagedObject>(
+			gameobject,
+			"findComponents(System.Type)",
+			{ (void*)transformType }
+		);
+		if (compArr == nullptr) return {};
+
+		size_t length = REInvoke<size_t>(compArr, "GetLength(System.Int32)", { (void*)0 }, InvokeReturnType::DWORD);
+		std::vector<REApi::ManagedObject*> transforms{};
+		for (size_t i = 0; i < length; i++) {
+			REApi::ManagedObject* t = REInvokePtr<REApi::ManagedObject>(compArr, "GetValue(System.Int32)", { (void*)i });
+			if (t != nullptr) transforms.push_back(t);
+			if (t != nullptr) DEBUG_STACK.fpush("Transform: {}", REInvokeStr(t, "ToString()", {}));
+		}
+
+		return transforms;
+	}
 
 }
