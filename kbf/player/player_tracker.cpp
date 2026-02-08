@@ -1182,8 +1182,9 @@ namespace kbf {
         }
 
         int networkIndex = REInvoke<int>(cPlayerContext, "get_CurrentNetworkMemberIndex", {}, InvokeReturnType::DWORD);
+		uint32_t unsignedNetworkIdx = static_cast<uint32_t>(networkIndex);
 
-        REApi::ManagedObject* playerNetInfo = REInvokePtr<REApi::ManagedObject>(Net_UserInfoList, "getInfoSystem", { (void*)networkIndex }); // How tf does this determine the correct signature between System.Int32 & System.Guid??
+        REApi::ManagedObject* playerNetInfo = REInvokePtr<REApi::ManagedObject>(Net_UserInfoList, "getInfoSystem(System.UInt32)", { (void*)unsignedNetworkIdx });
         if (playerNetInfo == nullptr) {
             DEBUG_STACK.push(std::format("{} Fetched player at index {}, but playerNetInfo returned nullptr, skipping.", PLAYER_TRACKER_LOG_TAG, i), DebugStack::Color::COL_WARNING);
             return PlayerFetchFlags::FETCH_ERROR_NULL;
