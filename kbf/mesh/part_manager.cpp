@@ -1,6 +1,5 @@
 #include <kbf/mesh/part_manager.hpp>
 
-#include <kbf/data/armour/armour_list.hpp>
 #include <kbf/util/re_engine/reinvoke.hpp>
 #include <kbf/debug/debug_stack.hpp>
 #include <kbf/util/re_engine/re_object_properties_to_string.hpp>

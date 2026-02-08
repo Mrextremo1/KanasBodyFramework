@@ -2,7 +2,6 @@
 
 #include <kbf/data/ids/font_symbols.hpp>
 #include <kbf/data/ids/special_armour_ids.hpp>
-#include <kbf/data/armour/armour_list.hpp>
 #include <kbf/util/id/uuid_generator.hpp>
 #include <kbf/util/functional/invoke_callback.hpp>
 #include <kbf/debug/debug_stack.hpp>
@@ -171,7 +170,7 @@ namespace kbf {
     }
 
     void EditPresetPanel::drawArmourList(const std::string& filter) {
-        std::vector<ArmourSet> armours = ArmourList::getFilteredSets(filter);
+        std::vector<ArmourSet> armours = ArmourDataManager::get().getFilteredArmourSets(filter);
 
         // Fixed-height, scrollable region
         CImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.02f, 0.02f, 0.02f, 1.0f));

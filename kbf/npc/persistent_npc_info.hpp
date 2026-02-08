@@ -1,7 +1,7 @@
 #pragma once
 
+#include <kbf/data/npc/npc_type.hpp>
 #include <kbf/data/armour/armour_info.hpp>
-#include <kbf/npc/npc_id.hpp>
 #include <kbf/mesh/bone_manager.hpp>
 #include <kbf/mesh/part_manager.hpp>
 #include <kbf/mesh/material_manager.hpp>
@@ -18,7 +18,7 @@ namespace kbf {
 	// Player info that isn't updated every frame
 	struct PersistentNpcInfo {
 		size_t index;
-		NpcID npcID = NpcID::NPC_ID_UNKNOWN;
+		NpcType npcID = NpcType::NPC_TYPE_UNKNOWN;
 
 		ArmourInfo armourInfo;
 		reframework::API::ManagedObject* Transform_base = nullptr;

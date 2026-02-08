@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kbf/data/ids/special_armour_ids.hpp>
+
 namespace kbf {
 
 	class NpcPrefabAliasMappings {
@@ -15,26 +17,26 @@ namespace kbf {
 		inline static const std::unordered_map<std::string, std::vector<std::string>> mappings{
 			// NPCs with variants
 			{ "NPC102_00_001", {
-				"[NPC] Alma's Handler's Outfit"          ,
-				"[NPC] Alma's Scrivener's Coat"          ,
-				"[NPC] Alma's Spring Blossom Kimono"     ,
-				"[NPC] Alma's Summer Poncho"             ,
-				"[NPC] Alma's New World Commission"      ,
-				"[NPC] Alma's Chun Li Outfit"            ,
-				"[NPC] Alma's Cammy Outfit"              ,
-				"[NPC] Alma's Autumn Witch Outfit"       ,
-				"[NPC] Alma's Featherskirt Seikret Dress",
+				ALMAS_HANDLER_OUTFIT_NAME            ,
+				ALMAS_SCRIVENERS_COAT_NAME           ,
+				ALMAS_SPRING_BLOSSOM_KIMONO_NAME     ,
+				ALMAS_SUMMER_PONCHO_NAME             ,
+				ALMAS_NEW_WORLD_COMMISSION_NAME      ,
+				ALMAS_CHUN_LI_OUTFIT_NAME            ,
+				ALMAS_CAMMY_OUTFIT_NAME              ,
+				ALMAS_AUTUMN_WITCH_OUTFIT_NAME       ,
+				ALMAS_FEATHERSKIRT_SEIKRET_DRESS_NAME,
 			} },
 			{ "NPC102_00_010", {
-				"[NPC] Gemma's Smithy's Outfit"       ,
-				"[NPC] Gemma's Summer Coveralls"      ,
-				"[NPC] Gemma's Redveil Seikret Dress" ,
+				GEMMAS_SMITHYS_OUTFIT_NAME       ,
+				GEMMAS_SUMMER_COVERALLS_NAME     ,
+				GEMMAS_REDVEIL_SEIKRET_DRESS_NAME,
 			} },
 			{ "NPC101_00_002", {
-				"[NPC] Erik's Handler's Outfit"         ,
-				"[NPC] Erik's Summer Hat"               ,
-				"[NPC] Erik's Autumn Therian"           ,
-				"[NPC] Erik's Crestcollar Seikret Suit" ,
+				ERIKS_HANDLERS_OUTFIT_NAME         ,
+				ERIKS_SUMMER_HAT_NAME              ,
+				ERIKS_AUTUMN_THERIAN_NAME          ,
+				ERIKS_CRESTCOLLAR_SEIKRET_SUIT_NAME,
 			} },
 			{ "NPC101_00_004", {
 				"[NPC] Nata's Outfit",

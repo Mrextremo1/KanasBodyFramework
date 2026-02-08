@@ -80,7 +80,7 @@ namespace kbf {
 
 		// Preset Editor
 		void drawPresetEditor();
-		bool drawPresetEditor_ArmourTab(const char* label, ArmourPiece piece, const char* englishName, Preset** preset, ArmourID id);
+		bool drawPresetEditor_ArmourTab(const char* label, ArmourPiece piece, const char* englishName, Preset** preset, ArmourPieceFlags residentPieces);
 		void drawPresetEditor_Properties(Preset** preset);
 		void drawPresetEditor_BoneModifiers(Preset** preset, ArmourPiece piece);
 		static std::unordered_map<std::string, std::vector<SortableBoneModifier>> getProcessedModifiers(

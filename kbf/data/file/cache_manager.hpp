@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <filesystem>
 #include <fstream>
-#include <kbf/data/armour/armour_list.hpp>
+#include <kbf/data/armour/armour_data_manager.hpp>
 
 #define CACHE_MANAGER_LOG_TAG "[CacheManager]"
 
@@ -101,7 +101,7 @@ namespace kbf {
 			ArmourSetWithCharacterSex armour;
 
 			if (!getCacheArmourSet(path.stem().string(), &armour)) {
-				DEBUG_STACK.push(std::format("{} Cache @ {} has an invalid name. Skipping...", CACHE_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_WARNING);
+				DEBUG_STACK.push(std::format("{} Cache @ {} has does not have a corresponding armour set mapping. Skipping...", CACHE_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_WARNING);
 				return false;
 			}
 
@@ -258,7 +258,7 @@ namespace kbf {
 			// Restore dots
 			std::replace(armourName.begin(), armourName.end(), '&', '.');
 
-			if (!ArmourList::isValidArmourSet(armourName, female))
+			if (!ArmourDataManager::get().hasArmourSetMapping(ArmourSet{ armourName, female }))
 				return false;
 
 			*out = ArmourSetWithCharacterSex{ ArmourSet{ armourName, female }, characterFemale };

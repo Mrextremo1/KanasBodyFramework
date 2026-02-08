@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kbf/debug/debug_stack.hpp>
 #include <kbf/npc/npc_info.hpp>
 #include <kbf/npc/persistent_npc_info.hpp>
 #include <kbf/npc/npc_cache.hpp>
@@ -95,6 +96,8 @@ namespace kbf {
 
         // Cutscene end tracking
         bool frameIsCutscene    = false;
+
+        inline static constexpr FixedString LOG_TAG{ "[NpcTracker]" };
     };
 
 }

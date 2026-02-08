@@ -1,6 +1,5 @@
 #include <kbf/gui/tabs/debug/debug_tab.hpp>
 
-#include <kbf/npc/get_npc_name.hpp>
 #include <kbf/data/npc/npc_data_manager.hpp>
 #include <kbf/gui/shared/styling_consts.hpp>
 #include <kbf/gui/shared/alignment.hpp>
@@ -13,6 +12,7 @@
 #include <kbf/situation/situation_watcher.hpp>
 #include <kbf/data/armour/armour_data_manager.hpp>
 #include <kbf/gui/shared/sex_marker.hpp>
+#include <kbf/data/ids/special_armour_ids.hpp>
 
 #include <chrono>
 #include <sstream>

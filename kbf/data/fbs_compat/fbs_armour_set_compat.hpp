@@ -1,7 +1,8 @@
 #pragma once
 
 #include <kbf/data/armour/armour_set.hpp>
-#include <kbf/data/armour/armour_list.hpp>
+#include <kbf/data/armour/armor_set_id.hpp>
+#include <kbf/data/ids/special_armour_ids.hpp>
 
 #include <string>
 #include <array>
@@ -304,7 +305,10 @@ namespace kbf {
 		if (!fbsArmourExists(idx, body)) return ArmourSet::DEFAULT;
 		std::string armourId = body ? fbsBodyAmoursByIdx[idx] : fbsLegsAmoursByIdx[idx];
 
-		return ArmourList::getArmourSetFromId(armourId);
+		std::optional<ArmorSetID> setId = ArmourDataManager::getArmourSetIDFromPrefabName(armourId);
+		if (!setId) return ArmourSet::DEFAULT;
+
+		return ArmourDataManager::get().getArmourSetFromArmourID(setId.value());
 	}
 
 }

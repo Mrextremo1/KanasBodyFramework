@@ -2,7 +2,6 @@
 
 #include <reframework/API.hpp>
 
-#include <kbf/data/armour/armour_list.hpp>
 #include <kbf/util/re_engine/reinvoke.hpp>
 #include <kbf/util/re_engine/dump_transform_tree.hpp>
 
@@ -55,8 +54,8 @@ namespace kbf {
             // ids stored in the look up tabe are all female... i.e. ch03_XXX_XXXX
             normalizedId[3] = normalizer;
 
-            ArmourSet set = ArmourList::getArmourSetFromId(normalizedId);
-            if (set != ArmourSet::DEFAULT) {
+            std::optional<ArmourSet> set = ArmourDataManager::get().getArmourSetFromPrefabName(normalizedId);
+            if (set.has_value()) {
                 // Players in multiplayer also have loooaaads of other objects present, but the first seems to always be the right one.
 				size_t index = static_cast<size_t>(piece - 1);
                 if (out[index] != ArmourSet::DEFAULT) {
@@ -64,7 +63,7 @@ namespace kbf {
                     continue;
 				}
 
-                out[static_cast<int>(piece - 1)] = set;
+                out[static_cast<int>(piece - 1)] = set.value();
                 foundFlags |= pieceFlag;
             }
         }
@@ -130,8 +129,8 @@ namespace kbf {
             // ids stored in the look up tabe are all female... i.e. ch03_XXX_XXXX
 			normalizedId[3] = '3';
 
-            ArmourSet set = ArmourList::getArmourSetFromId(normalizedId);
-            if (set != ArmourSet::DEFAULT) return set;
+            std::optional<ArmourSet> set = ArmourDataManager::get().getArmourSetFromPrefabName(normalizedId);
+            if (set.has_value()) return set.value();
 		}
 
         return ArmourSet::DEFAULT;
@@ -145,8 +144,8 @@ namespace kbf {
         std::vector<std::string> armours = findArmourObjectsInTransformTree(transform);
         for (const std::string& armourId : armours) {
             if (armourId[3] == '4') {
-                ArmourSet set = ArmourList::getArmourSetFromId(armourId);
-                if (set != ArmourSet::DEFAULT) return set;
+                std::optional<ArmourSet> set = ArmourDataManager::get().getArmourSetFromPrefabName(armourId);
+                if (set.has_value()) return set.value();
             }
         }
 

@@ -33,6 +33,19 @@ namespace kbf {
 
 	typedef uint32_t ArmourPieceFlags;
 
+	inline ArmourPieceFlags getArmourPieceFlag(ArmourPiece piece) {
+		switch (piece) {
+		case ArmourPiece::AP_SET:  return ArmourPieceFlagBits::APF_SET;
+		case ArmourPiece::AP_HELM: return ArmourPieceFlagBits::APF_HELM;
+		case ArmourPiece::AP_BODY: return ArmourPieceFlagBits::APF_BODY;
+		case ArmourPiece::AP_ARMS: return ArmourPieceFlagBits::APF_ARMS;
+		case ArmourPiece::AP_COIL: return ArmourPieceFlagBits::APF_COIL;
+		case ArmourPiece::AP_LEGS: return ArmourPieceFlagBits::APF_LEGS;
+		case ArmourPiece::AP_SLINGER: return ArmourPieceFlagBits::APF_SLINGER;
+		default: return APF_NONE;
+		}
+	}
+
 	inline std::string armourPieceToString(ArmourPiece piece) {
 		switch (piece) {
 		case ArmourPiece::AP_SET:     return "Set";

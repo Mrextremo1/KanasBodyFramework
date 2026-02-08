@@ -41,6 +41,9 @@ namespace kbf {
     void KBFDataManager::loadData() {
         DEBUG_STACK.push(std::format("{} Loading Data...", KBF_DATA_MANAGER_LOG_TAG), DebugStack::Color::COL_DEBUG);
 
+        NpcDataManager::get();    // initialize singleton to populate NPC mappings
+        ArmourDataManager::get(); // initialize singleton to populate armour mappings
+
         verifyDirectoriesExist();
 
         loadSettings();
@@ -62,16 +65,6 @@ namespace kbf {
 
         validateObjectsUsingPresets();
         validateObjectsUsingPresetGroups();
-
-        // Armour list stuff
-        #if KBF_DEBUG_BUILD
-		DEBUG_STACK.push(std::format("{} Note: Debug Build - using & writing fallback armour list...", KBF_DATA_MANAGER_LOG_TAG), DebugStack::Color::COL_WARNING);
-            writeArmourList(armourListPath, ArmourList::FALLBACK_MAPPING);
-        #endif
-
-        loadArmourList(armourListPath, &ArmourList::ACTIVE_MAPPING);
-		NpcDataManager::get();    // initialize singleton to populate NPC mappings
-        ArmourDataManager::get(); // initialize singleton to populate armour mappings
     }
 
     void KBFDataManager::clearData() {
@@ -154,7 +147,7 @@ namespace kbf {
         return getActiveDefaultPlayerPresetGroup(player.female);
     }
 
-    const PresetGroup* KBFDataManager::getActivePresetGroup(NpcID npcID, bool female) const {
+    const PresetGroup* KBFDataManager::getActivePresetGroup(NpcType npcID, bool female) const {
         if (female) return getPresetGroupByUUID(presetGroupDefaults.npc.female);
         return getPresetGroupByUUID(presetGroupDefaults.npc.male);
     }
@@ -192,60 +185,59 @@ namespace kbf {
         return nullptr;
     }
 
-    const Preset* KBFDataManager::getActivePreset(NpcID npcId, bool female, const ArmourSet& armourSet, ArmourPiece piece) const {
+    const Preset* KBFDataManager::getActivePreset(NpcType npcId, bool female, const ArmourSet& armourSet, ArmourPiece piece) const {
         switch (npcId) {
-        case NpcID::NPC_ID_UNKNOWN: return nullptr;
+        case NpcType::NPC_TYPE_UNKNOWN: return nullptr;
         // ---- Core NPCs Mapping ----
-        case NpcID::NPC_ID_ALMA: {
-            ArmourID armour = ArmourList::getArmourIdFromSet(armourSet);
-            std::string pieceId = armour.getPiece(piece);
+        case NpcType::NPC_TYPE_ALMA: {
+            if (!(ArmourDataManager::get().getResidentArmourPieces(armourSet) & ArmourPieceFlagBits::APF_BODY)) return nullptr;
             
             std::string presetUUID = "";
-            if      (pieceId == "ch04_000_0000") presetUUID = presetDefaults.alma.handlersOutfit;
-            else if	(pieceId == "ch04_000_0002") presetUUID = presetDefaults.alma.scrivenersCoat;
-            else if	(pieceId == "ch04_000_0070") presetUUID = presetDefaults.alma.springBlossomKimono;
-            else if	(pieceId == "ch04_000_0071") presetUUID = presetDefaults.alma.summerPoncho;
-            else if	(pieceId == "ch04_000_0074") presetUUID = presetDefaults.alma.newWorldCommission;
-            else if	(pieceId == "ch04_000_0075") presetUUID = presetDefaults.alma.chunLiOutfit;
-            else if (pieceId == "ch04_000_0076") presetUUID = presetDefaults.alma.cammyOutfit;
-            else if	(pieceId == "ch04_000_0072") presetUUID = presetDefaults.alma.autumnWitch;
+            if      (armourSet.name == ALMAS_HANDLER_OUTFIT_NAME            ) presetUUID = presetDefaults.alma.handlersOutfit;
+            else if	(armourSet.name == ALMAS_SCRIVENERS_COAT_NAME           ) presetUUID = presetDefaults.alma.scrivenersCoat;
+            else if	(armourSet.name == ALMAS_SPRING_BLOSSOM_KIMONO_NAME     ) presetUUID = presetDefaults.alma.springBlossomKimono;
+            else if	(armourSet.name == ALMAS_SUMMER_PONCHO_NAME             ) presetUUID = presetDefaults.alma.summerPoncho;
+            else if	(armourSet.name == ALMAS_NEW_WORLD_COMMISSION_NAME      ) presetUUID = presetDefaults.alma.newWorldCommission;
+            else if	(armourSet.name == ALMAS_CHUN_LI_OUTFIT_NAME            ) presetUUID = presetDefaults.alma.chunLiOutfit;
+            else if (armourSet.name == ALMAS_CAMMY_OUTFIT_NAME              ) presetUUID = presetDefaults.alma.cammyOutfit;
+            else if	(armourSet.name == ALMAS_AUTUMN_WITCH_OUTFIT_NAME       ) presetUUID = presetDefaults.alma.autumnWitch;
+			else if (armourSet.name == ALMAS_FEATHERSKIRT_SEIKRET_DRESS_NAME) presetUUID = presetDefaults.alma.featherskirtSeikretDress;
 
             return getPresetByUUID(presetUUID);
         }
-        case NpcID::NPC_ID_GEMMA: {
-            ArmourID armour = ArmourList::getArmourIdFromSet(armourSet);
-            std::string pieceId = armour.getPiece(piece);
-            
+        case NpcType::NPC_TYPE_GEMMA: {
+            if (!(ArmourDataManager::get().getResidentArmourPieces(armourSet) & ArmourPieceFlagBits::APF_BODY)) return nullptr;
+
             std::string presetUUID = "";
-            if      (pieceId == "ch04_004_0000") presetUUID = presetDefaults.gemma.smithysOutfit;
-            else if	(pieceId == "ch04_004_0072") presetUUID = presetDefaults.gemma.summerCoveralls;
+            if      (armourSet.name == GEMMAS_SMITHYS_OUTFIT_NAME       ) presetUUID = presetDefaults.gemma.smithysOutfit;
+            else if	(armourSet.name == GEMMAS_SUMMER_COVERALLS_NAME     ) presetUUID = presetDefaults.gemma.summerCoveralls;
+			else if (armourSet.name == GEMMAS_REDVEIL_SEIKRET_DRESS_NAME) presetUUID = presetDefaults.gemma.redveilSeikretDress;
 
             return getPresetByUUID(presetUUID);
         }
-        case NpcID::NPC_ID_ERIK: {
-            ArmourID armour = ArmourList::getArmourIdFromSet(armourSet);
-            std::string pieceId = armour.getPiece(piece);
-            
+        case NpcType::NPC_TYPE_ERIK: {
+            if (!(ArmourDataManager::get().getResidentArmourPieces(armourSet) & ArmourPieceFlagBits::APF_BODY)) return nullptr;
+
             std::string presetUUID = "";
-            if      (pieceId == "ch04_010_0000") presetUUID = presetDefaults.erik.handlersOutfit;
-            else if (pieceId == "ch04_010_0071") presetUUID = presetDefaults.erik.summerHat;
-            else if	(pieceId == "ch04_010_0072") presetUUID = presetDefaults.erik.autumnTherian;
+            if      (armourSet.name == ERIKS_HANDLERS_OUTFIT_NAME         ) presetUUID = presetDefaults.erik.handlersOutfit;
+            else if (armourSet.name == ERIKS_SUMMER_HAT_NAME              ) presetUUID = presetDefaults.erik.summerHat;
+            else if	(armourSet.name == ERIKS_AUTUMN_THERIAN_NAME          ) presetUUID = presetDefaults.erik.autumnTherian;
+			else if (armourSet.name == ERIKS_CRESTCOLLAR_SEIKRET_SUIT_NAME) presetUUID = presetDefaults.erik.crestcollarSeikretSuit;
 
             return getPresetByUUID(presetUUID);
         }
         // ---- Support Hunters Mapping ----
         // TODO: For now all support hunters have only one outfit mapping. If this ever changes (likely will, at least for olivia), you'll have to add proper logic here.
-        case NpcID::NPC_ID_OLIVIA:    return getPresetByUUID(presetDefaults.supportHunters.olivia.defaultOutfit);
-		case NpcID::NPC_ID_ROSSO:     return getPresetByUUID(presetDefaults.supportHunters.rosso.quematrice);
-		case NpcID::NPC_ID_ALESSA:    return getPresetByUUID(presetDefaults.supportHunters.alessa.balahara);
-		case NpcID::NPC_ID_MINA:      return getPresetByUUID(presetDefaults.supportHunters.mina.chatacabra);
-		case NpcID::NPC_ID_KAI:       return getPresetByUUID(presetDefaults.supportHunters.kai.ingot);
-		case NpcID::NPC_ID_GRIFFIN:   return getPresetByUUID(presetDefaults.supportHunters.griffin.conga);
-		case NpcID::NPC_ID_NIGHTMIST: return getPresetByUUID(presetDefaults.supportHunters.nightmist.ingot);
-		case NpcID::NPC_ID_FABIUS:    return getPresetByUUID(presetDefaults.supportHunters.fabius.defaultOutfit);
-		case NpcID::NPC_ID_NADIA:     return getPresetByUUID(presetDefaults.supportHunters.nadia.defaultOutfit);
-        case NpcID::NPC_ID_UNNAMED:
-        case NpcID::NPC_ID_HUNTER: {
+        case NpcType::NPC_TYPE_OLIVIA:    return getPresetByUUID(presetDefaults.supportHunters.olivia.defaultOutfit);
+		case NpcType::NPC_TYPE_ROSSO:     return getPresetByUUID(presetDefaults.supportHunters.rosso.quematrice);
+		case NpcType::NPC_TYPE_ALESSA:    return getPresetByUUID(presetDefaults.supportHunters.alessa.balahara);
+		case NpcType::NPC_TYPE_MINA:      return getPresetByUUID(presetDefaults.supportHunters.mina.chatacabra);
+		case NpcType::NPC_TYPE_KAI:       return getPresetByUUID(presetDefaults.supportHunters.kai.ingot);
+		case NpcType::NPC_TYPE_GRIFFIN:   return getPresetByUUID(presetDefaults.supportHunters.griffin.conga);
+		case NpcType::NPC_TYPE_NIGHTMIST: return getPresetByUUID(presetDefaults.supportHunters.nightmist.ingot);
+		case NpcType::NPC_TYPE_FABIUS:    return getPresetByUUID(presetDefaults.supportHunters.fabius.defaultOutfit);
+		case NpcType::NPC_TYPE_NADIA:     return getPresetByUUID(presetDefaults.supportHunters.nadia.defaultOutfit);
+        case NpcType::NPC_TYPE_GENERIC: {
             const PresetGroup* activePresetGroup = getActivePresetGroup(npcId, female);
             if (activePresetGroup == nullptr) return nullptr;
 
@@ -2725,207 +2717,6 @@ namespace kbf {
             return false;
         }
         return true;
-    }
-
-    bool KBFDataManager::loadArmourList(const std::filesystem::path& path, ArmourMapping* out) {
-        assert(out != nullptr);
-
-        DEBUG_STACK.push(std::format("{} Loading armour list from \"{}\"", KBF_DATA_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_INFO);
-
-        rapidjson::Document armourListDoc = loadConfigJson(KbfFileType::ARMOUR_LIST, path.string(), nullptr);
-        if (!armourListDoc.IsObject() || armourListDoc.HasParseError()) {
-            DEBUG_STACK.push(std::format("{} Failed to parse Armour List at \"{}\". Using internal fallback...", KBF_DATA_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_ERROR);
-            return false;
-        }
-
-        bool parsed = loadArmourListData(armourListDoc, out);
-
-        if (!parsed) {
-            DEBUG_STACK.push(std::format("{} Failed to parse Armour List at \"{}\". Using internal fallback...", KBF_DATA_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_ERROR);
-            *out = ArmourList::FALLBACK_MAPPING;
-        }
-        else {
-            DEBUG_STACK.push(std::format("{} Successfully loaded Armour List from \"{}\"", KBF_DATA_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_SUCCESS);
-        }
-
-        return parsed;
-    }
-
-    bool KBFDataManager::loadArmourListData(const rapidjson::Value& doc, ArmourMapping* out) const {
-        assert(out != nullptr);
-
-        bool parsed = true;
-
-        for (const auto& armourSet : doc.GetObject()) {
-            std::string name = armourSet.name.GetString();
-            if (armourSet.value.IsObject()) {
-
-                bool hasEntry = false;
-                if (armourSet.value.HasMember(ARMOUR_LIST_FEMALE_ID) && armourSet.value[ARMOUR_LIST_FEMALE_ID].IsObject()) {
-                    const auto& femaleArmour = armourSet.value[ARMOUR_LIST_FEMALE_ID].GetObject();
-                    ArmourSet set{ name, true };
-                    ArmourID id;
-
-                    bool hasAny = false;
-                    if (femaleArmour.HasMember(ARMOUR_LIST_HELM_ID) && femaleArmour[ARMOUR_LIST_HELM_ID].IsString()) {
-                        id.helm = femaleArmour[ARMOUR_LIST_HELM_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (femaleArmour.HasMember(ARMOUR_LIST_BODY_ID) && femaleArmour[ARMOUR_LIST_BODY_ID].IsString()) {
-                        id.body = femaleArmour[ARMOUR_LIST_BODY_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (femaleArmour.HasMember(ARMOUR_LIST_ARMS_ID) && femaleArmour[ARMOUR_LIST_ARMS_ID].IsString()) {
-                        id.arms = femaleArmour[ARMOUR_LIST_ARMS_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (femaleArmour.HasMember(ARMOUR_LIST_COIL_ID) && femaleArmour[ARMOUR_LIST_COIL_ID].IsString()) {
-                        id.coil = femaleArmour[ARMOUR_LIST_COIL_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (femaleArmour.HasMember(ARMOUR_LIST_LEGS_ID) && femaleArmour[ARMOUR_LIST_LEGS_ID].IsString()) {
-                        id.legs = femaleArmour[ARMOUR_LIST_LEGS_ID].GetString();
-                        hasAny = true;
-                    }
-
-                    if (!hasAny) {
-                        DEBUG_STACK.push(std::format("{} Failed to parse armour list entry: \"{}\" (Female). No piece entries found.", KBF_DATA_MANAGER_LOG_TAG, name), DebugStack::Color::COL_ERROR);
-                    }
-
-                    out->emplace(set, id);
-                    
-                    hasEntry |= hasAny;
-                }
-
-                if (armourSet.value.HasMember(ARMOUR_LIST_MALE_ID) && armourSet.value[ARMOUR_LIST_MALE_ID].IsObject()) {
-                    const auto& maleArmour = armourSet.value[ARMOUR_LIST_MALE_ID].GetObject();
-                    ArmourSet set{ name, false };
-                    ArmourID id;
-
-                    bool hasAny = false;
-                    if (maleArmour.HasMember(ARMOUR_LIST_HELM_ID) && maleArmour[ARMOUR_LIST_HELM_ID].IsString()) {
-                        id.helm = maleArmour[ARMOUR_LIST_HELM_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (maleArmour.HasMember(ARMOUR_LIST_BODY_ID) && maleArmour[ARMOUR_LIST_BODY_ID].IsString()) {
-                        id.body = maleArmour[ARMOUR_LIST_BODY_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (maleArmour.HasMember(ARMOUR_LIST_ARMS_ID) && maleArmour[ARMOUR_LIST_ARMS_ID].IsString()) {
-                        id.arms = maleArmour[ARMOUR_LIST_ARMS_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (maleArmour.HasMember(ARMOUR_LIST_COIL_ID) && maleArmour[ARMOUR_LIST_COIL_ID].IsString()) {
-                        id.coil = maleArmour[ARMOUR_LIST_COIL_ID].GetString();
-                        hasAny = true;
-                    }
-                    if (maleArmour.HasMember(ARMOUR_LIST_LEGS_ID) && maleArmour[ARMOUR_LIST_LEGS_ID].IsString()) {
-                        id.legs = maleArmour[ARMOUR_LIST_LEGS_ID].GetString();
-                        hasAny = true;
-                    }
-
-                    if (!hasAny) {
-                        DEBUG_STACK.push(std::format("{} Failed to parse armour list entry: \"{}\" (Male). No piece entries found.", KBF_DATA_MANAGER_LOG_TAG, name), DebugStack::Color::COL_ERROR);
-                    }
-
-                    out->emplace(set, id);
-                    
-                    hasEntry |= hasAny;
-                }
-
-                if (!hasEntry) {
-                    parsed = false;
-                    DEBUG_STACK.push(std::format("{} Failed to parse armour list entry: \"{}\". No piece entries found.", KBF_DATA_MANAGER_LOG_TAG, name), DebugStack::Color::COL_ERROR);
-                }
-            }
-            else {
-                DEBUG_STACK.push(std::format("{} Failed to parse armour list entry: {}. Expected an object, but got a different type.", KBF_DATA_MANAGER_LOG_TAG, name), DebugStack::Color::COL_ERROR);
-            }
-        }
-
-        return parsed;
-    }
-
-    bool KBFDataManager::writeArmourList(const std::filesystem::path& path, const ArmourMapping& mapping) const {
-        DEBUG_STACK.push(std::format("{} Writing armour list to {}", KBF_DATA_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_INFO);
-
-        rapidjson::StringBuffer s;
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(s);
-
-        writeArmourListJsonContent(mapping, writer);
-
-        bool success = writeJsonFile(path.string(), s.GetString());
-
-        if (!success) {
-            DEBUG_STACK.push(std::format("{} Failed to write armour list to {}", KBF_DATA_MANAGER_LOG_TAG, path.string()), DebugStack::Color::COL_ERROR);
-        }
-
-        return success;
-    }
-
-    void KBFDataManager::writeArmourListJsonContent(
-        const ArmourMapping& mapping, 
-        rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer
-    ) const {
-        std::set<std::string> armourNames;
-        for (const auto& [set, _] : mapping) {
-            armourNames.insert(set.name);
-        }
-
-        auto writeCompactArmourSet = [](const ArmourSet& armourSet, const ArmourMapping& mapping) {
-            rapidjson::StringBuffer buf;
-            rapidjson::Writer<rapidjson::StringBuffer> compactWriter(buf); // one-line writer
-
-            compactWriter.StartObject();
-            if (!mapping.at(armourSet).helm.empty()) {
-                compactWriter.Key(ARMOUR_LIST_HELM_ID);
-                compactWriter.String(mapping.at(armourSet).helm.c_str());
-            }
-            if (!mapping.at(armourSet).body.empty()) {
-                compactWriter.Key(ARMOUR_LIST_BODY_ID);
-                compactWriter.String(mapping.at(armourSet).body.c_str());
-            }
-            if (!mapping.at(armourSet).arms.empty()) {
-                compactWriter.Key(ARMOUR_LIST_ARMS_ID);
-                compactWriter.String(mapping.at(armourSet).arms.c_str());
-            }
-            if (!mapping.at(armourSet).coil.empty()) {
-                compactWriter.Key(ARMOUR_LIST_COIL_ID);
-                compactWriter.String(mapping.at(armourSet).coil.c_str());
-            }
-            if (!mapping.at(armourSet).legs.empty()) {
-                compactWriter.Key(ARMOUR_LIST_LEGS_ID);
-                compactWriter.String(mapping.at(armourSet).legs.c_str());
-            }
-            compactWriter.EndObject();
-
-            return buf;
-        };
-
-        writer.StartObject();
-        for (const std::string& name : armourNames) {
-            writer.Key(name.c_str());
-            writer.StartObject();
-
-            ArmourSet femaleArmour{ name, true };
-            if (mapping.find(femaleArmour) != mapping.end()) {
-                writer.Key(ARMOUR_LIST_FEMALE_ID);
-
-                rapidjson::StringBuffer compactBuf = writeCompactArmourSet(femaleArmour, mapping);
-                writer.RawValue(compactBuf.GetString(), compactBuf.GetSize(), rapidjson::kObjectType);
-            }
-
-            ArmourSet maleArmour{ name, false };
-            if (mapping.find(maleArmour) != mapping.end()) {
-                writer.Key(ARMOUR_LIST_MALE_ID);
-
-                rapidjson::StringBuffer compactBuf = writeCompactArmourSet(maleArmour, mapping);
-                writer.RawValue(compactBuf.GetString(), compactBuf.GetSize(), rapidjson::kObjectType);
-            }
-
-            writer.EndObject();
-        }
-        writer.EndObject();
     }
 
 }

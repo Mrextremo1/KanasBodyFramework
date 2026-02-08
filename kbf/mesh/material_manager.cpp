@@ -1,6 +1,5 @@
 #include <kbf/mesh/material_manager.hpp>
 
-#include <kbf/data/armour/armour_list.hpp>
 #include <kbf/util/re_engine/reinvoke.hpp>
 #include <kbf/debug/debug_stack.hpp>
 #include <kbf/util/re_engine/check_re_ptr_validity.hpp>

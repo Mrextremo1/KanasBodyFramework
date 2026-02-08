@@ -1,9 +1,12 @@
 #pragma once
 
 #include <kbf/data/armour/armor_set_id.hpp>
+#include <kbf/data/armour/armour_piece.hpp>
 #include <kbf/util/re_engine/reinvoke.hpp>
 #include <kbf/util/re_engine/guid_to_string.hpp>
 #include <kbf/util/re_engine/re_singleton.hpp>
+
+#include <unordered_set>
 
 #define ARMOUR_DATA_FETCH_CAP 1000
 
@@ -31,6 +34,7 @@ namespace kbf {
 		std::string name;
 		bool female;
 		ArmorSeriesDisplayRank ranks = ArmorSeriesDisplayRankFlags::RANK_NONE;
+		ArmourPieceFlags residentPieces = ArmourPieceFlagBits::APF_NONE;
 	};
 
 	struct NpcPrefabData {
@@ -40,8 +44,11 @@ namespace kbf {
 	};
 
 	// Note, two ArmorSetIDs can map to the same Armor due to alpha/beta sets.
-	using ArmorSeriesIDMap   = std::unordered_map<ArmorSetID, ArmorSeriesData>;
+	using ArmorSeriesIDMap       = std::unordered_map<ArmorSetID, ArmorSeriesData>;
 	using NpcPrefabToArmorSetMap = std::unordered_map<std::string, NpcPrefabData>;
+	using ArmorSetToSetIDMap     = std::unordered_map<ArmourSet, ArmorSetID>; 
+	using ArmorSetToNpcPrefabMap = std::unordered_map<ArmourSet, std::string>;
+	using ArmorSetResidentPiecesMap = std::unordered_map<ArmourSet, ArmourPieceFlags>;
 
 	class ArmourDataManager {
 	public:
@@ -53,6 +60,13 @@ namespace kbf {
 		std::vector<ArmourSet> getFilteredArmourSets(const std::string& filter);
 		ArmourSet getArmourSetFromArmourID(const ArmorSetID& setId) const;
 		ArmourSet getArmourSetFromNpcPrefab(const std::string& npcPrefabPath, bool female) const;
+		REApi::ManagedObject* getNpcPrefabPrimaryTransform(const std::string& prefabPath, REApi::ManagedObject* baseTransform);
+
+		bool hasArmourSetMapping(const ArmourSet& set) const;
+		ArmourPieceFlags getResidentArmourPieces(const ArmourSet& set) const;
+		//bool armourSetHasPiece(const ArmourSet& set, const ArmourPiece& piece) const;
+		std::optional<ArmourSet> getArmourSetFromPrefabName(const std::string& prefabName);
+		static std::optional<ArmorSetID> getArmourSetIDFromPrefabName(const std::string& prefabName);
 
 	private:
 		ArmourDataManager() = default;
@@ -60,6 +74,13 @@ namespace kbf {
 
 		ArmorSeriesIDMap armourSeriesIDMappings;
 		NpcPrefabToArmorSetMap npcPrefabToArmourSetMap;
+		ArmorSetToSetIDMap knownArmourSeries;
+		ArmorSetToNpcPrefabMap knownNpcPrefabs;
+		std::unordered_map<std::string, std::string> npcPrefabToPrimaryTransformNameMap;
+
+		void getArmourMappings();
+
+		ArmourPieceFlags getResidentArmourPieces(size_t armorSeries) const;
 
 		ArmorSeriesIDMap getArmorSeriesData();
 		ArmorSeriesIDMap getHunterArmorData();

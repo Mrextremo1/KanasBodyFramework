@@ -7,7 +7,7 @@
 #include <kbf/gui/shared/sex_marker.hpp>
 #include <kbf/data/ids/font_symbols.hpp>
 #include <kbf/data/ids/special_armour_ids.hpp>
-#include <kbf/data/armour/armour_list.hpp>
+#include <kbf/util/string/to_binary_string.hpp>
 #include <kbf/util/functional/invoke_callback.hpp>
 #include <kbf/debug/debug_stack.hpp>
 #include <kbf/data/bones/default_bones.hpp>
@@ -451,7 +451,7 @@ namespace kbf {
         CImGui::Spacing();
         CImGui::Spacing();
 
-        const std::vector<ArmourSet> armourSets = ArmourList::getFilteredSets(filterStr);
+        const std::vector<ArmourSet> armourSets = ArmourDataManager::get().getFilteredArmourSets(filterStr);
         if (armourSets.size() == 0) {
             constexpr char const* noArmourStr = "Armour Set Search Found Zero Results.";
             preAlignCellContentHorizontal(noArmourStr);
@@ -558,8 +558,8 @@ namespace kbf {
         constexpr float armourSexMarkerOffsetBefore = 5.0f;
         constexpr float armourSexMarkerOffset = 17.5f;
 
-        ArmourID armourID = ArmourList::getArmourIdFromSet(armour);
-        bool isNotAssignable = piece != ArmourPiece::AP_SET && armourID.getPiece(piece).empty();
+        ArmourPieceFlags residentPieces = ArmourDataManager::get().getResidentArmourPieces(armour);
+		bool isNotAssignable = piece != ArmourPiece::AP_SET && !(residentPieces & getArmourPieceFlag(piece));
 
         if (preset) {
             std::string bodyArmourSexMarkSymbol = preset->female ? WS_FONT_FEMALE : WS_FONT_MALE;
@@ -716,7 +716,7 @@ namespace kbf {
         if (CImGui::BeginTabBar("PresetEditorTabs"))
         {
             Preset** p = &openObject.ptrAfter.preset;
-            ArmourID id = ArmourList::getArmourIdFromSet((**p).armour);
+			ArmourPieceFlags residentPieces = ArmourDataManager::get().getResidentArmourPieces((**p).armour);
 
             if (CImGui::BeginTabItem("Properties")) {
                 CImGui::Spacing();
@@ -732,11 +732,11 @@ namespace kbf {
             }
             if (CImGui::IsItemClicked()) selectBonePanel.close();
 
-            drawPresetEditor_ArmourTab("Head",  ArmourPiece::AP_HELM, "helmet",     p, id);
-            drawPresetEditor_ArmourTab("Body",  ArmourPiece::AP_BODY, "chestpiece", p, id);
-            drawPresetEditor_ArmourTab("Arms",  ArmourPiece::AP_ARMS, "vambraces",  p, id);
-            drawPresetEditor_ArmourTab("Waist", ArmourPiece::AP_COIL, "coil",       p, id);
-            drawPresetEditor_ArmourTab("Legs",  ArmourPiece::AP_LEGS, "greaves",    p, id);
+            drawPresetEditor_ArmourTab("Head",  ArmourPiece::AP_HELM, "helmet",     p, residentPieces);
+            drawPresetEditor_ArmourTab("Body",  ArmourPiece::AP_BODY, "chestpiece", p, residentPieces);
+            drawPresetEditor_ArmourTab("Arms",  ArmourPiece::AP_ARMS, "vambraces",  p, residentPieces);
+            drawPresetEditor_ArmourTab("Waist", ArmourPiece::AP_COIL, "coil",       p, residentPieces);
+            drawPresetEditor_ArmourTab("Legs",  ArmourPiece::AP_LEGS, "greaves",    p, residentPieces);
 
             if (CImGui::BeginTabItem("Parts")) {
                 CImGui::Spacing();
@@ -759,7 +759,7 @@ namespace kbf {
         ArmourPiece piece,
         const char* englishName,
         Preset** preset,
-        ArmourID id
+        ArmourPieceFlags residentPieces
     ) {
         constexpr auto beginFauxDisableTabItem = []() {
             ImVec4 off = *CImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
@@ -772,7 +772,7 @@ namespace kbf {
             CImGui::PopStyleColor();
         };
 
-        const bool disabled = !id.hasPiece(piece);
+		const bool disabled = !(residentPieces & getArmourPieceFlag(piece));
         if (disabled) beginFauxDisableTabItem();
 
         bool open = false;
@@ -1688,7 +1688,7 @@ namespace kbf {
     }
 
     void EditorTab::drawArmourList(Preset& preset, const std::string& filter) {
-        std::vector<ArmourSet> armours = ArmourList::getFilteredSets(filter);
+        std::vector<ArmourSet> armours = ArmourDataManager::get().getFilteredArmourSets(filter);
 
         // Fixed-height, scrollable region
         CImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.02f, 0.02f, 0.02f, 1.0f));

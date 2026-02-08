@@ -31,7 +31,6 @@ set(GLM_PATH           external/glm)               # GLM
 
 set(KBF_SOURCES
     "kbf/data/armour/armour_data_manager.cpp"
-    "kbf/data/armour/armour_list.cpp"
     "kbf/data/armour/armour_set.cpp"
     "kbf/data/bones/bone_cache_manager.cpp"
     "kbf/data/file/kbf_file_upgrader.cpp"

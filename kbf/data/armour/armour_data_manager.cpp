@@ -4,12 +4,17 @@
 #include <kbf/data/npc/npc_data_manager.hpp>
 
 #include <kbf/util/string/to_lower.hpp>
+#include <kbf/util/string/to_binary_string.hpp>
 #include <kbf/data/ids/special_armour_ids.hpp>
 #include <kbf/util/re_engine/print_re_object.hpp>
+#include <kbf/util/re_engine/find_transform.hpp>
+#include <kbf/util/re_engine/get_component.hpp>
+#include <kbf/enums/armor_parts.hpp>
 
 #include <unordered_set>
 #include <set>
 #include <numeric>
+#include <regex>
 
 #define NPC_ARMOR_PREFAB_FETCH_CAP 2000
 #define NPC_UNIQUE_PREFAB_SETS_FETCH_CAP 4
@@ -27,8 +32,7 @@ namespace kbf {
 	void ArmourDataManager::initialize() {
 		if (initialized) return;
 
-		armourSeriesIDMappings = getArmorSeriesData();
-		npcPrefabToArmourSetMap = getNpcArmorData();
+		getArmourMappings();
 		initialized = true;
 	}
 
@@ -89,6 +93,169 @@ namespace kbf {
 		return ArmourSet::DEFAULT;
 	}
 
+	REApi::ManagedObject* ArmourDataManager::getNpcPrefabPrimaryTransform(const std::string& prefabPath, REApi::ManagedObject* baseTransform) {
+		// We want to find these components WITHOUT relying on the name of them. This is because doing so is:
+		//  - Slow with string checks
+		//  - Unreliable if prefab names change with updates / mods
+		
+		auto it = npcPrefabToPrimaryTransformNameMap.find(prefabPath);
+		// We know what the transform should be called, just find it
+		if (it != npcPrefabToPrimaryTransformNameMap.end()) return findTransform(baseTransform, it->second);
+
+		// We need to figure out what the primary transform is. Since this is cached, we can afford it being a touch on the expensive side.
+		// Search through the character's MeshSetting instances, these live UNDER each submesh in the prefab.
+		REApi::ManagedObject* baseGameObject = REInvokePtr<REApi::ManagedObject>(baseTransform, "get_GameObject", {});
+		if (!baseGameObject) return nullptr;
+
+		REApi::ManagedObject* meshSettingController = getComponent(baseGameObject, "app.MeshSettingController");
+		if (!meshSettingController) return nullptr;
+
+		REApi::ManagedObject* sequence = REInvokePtr<REApi::ManagedObject>(meshSettingController, "get_MeshSettingsAll()", {});
+		if (!sequence) return nullptr;
+
+		REApi::ManagedObject* enumerator = REInvokePtr<REApi::ManagedObject>(sequence, "System.Collections.Generic.IEnumerable<T>.GetEnumerator()", {});
+		if (!enumerator) return nullptr;
+
+		constexpr size_t FETCH_CAP = 100;
+		bool canMove = REInvoke<bool>(enumerator, "MoveNext()", {}, InvokeReturnType::BOOL);
+		size_t cnt = 0;
+
+		while (canMove && cnt < FETCH_CAP) {
+			REApi::ManagedObject* controller = REInvokePtr<REApi::ManagedObject>(enumerator, "System.Collections.Generic.IEnumerator<T>.get_Current()", {});
+			if (controller) {
+				REApi::ManagedObject* gameObj = REInvokePtr<REApi::ManagedObject>(controller, "get_GameObject", {});
+				if (!gameObj) continue;
+
+				// The main meshes just so happen to exclusively have this combination of components... might break in future.
+				bool hasCharacterEditRegion         = getComponent(gameObj, "app.CharacterEditRegion");
+				bool hasGroundSurfaceTrailRequester = getComponent(gameObj, "app.GroundSurfaceTrailRequester");
+
+				if (hasCharacterEditRegion && hasGroundSurfaceTrailRequester) {
+					std::string primaryTransformName = REInvokeStr(gameObj, "get_Name", {});
+					npcPrefabToPrimaryTransformNameMap.emplace(prefabPath, primaryTransformName);
+					return REInvokePtr<REApi::ManagedObject>(gameObj, "get_Transform", {});
+				}
+			}
+			canMove = REInvoke<bool>(enumerator, "MoveNext()", {}, InvokeReturnType::BOOL);
+			cnt++;
+		}
+
+		return nullptr;
+	}
+
+	bool ArmourDataManager::hasArmourSetMapping(const ArmourSet& set) const {
+		if (knownArmourSeries.contains(set)) return true;
+		if (knownNpcPrefabs.contains(set)) return true;
+		return false;
+	}
+
+	ArmourPieceFlags ArmourDataManager::getResidentArmourPieces(const ArmourSet& set) const {
+		if (knownNpcPrefabs.contains(set)) return ArmourPieceFlagBits::APF_BODY; // All prefabs apply under 'body' only
+
+		auto it = knownArmourSeries.find(set);
+		if (it != knownArmourSeries.end()) {
+			return armourSeriesIDMappings.at(it->second).residentPieces;
+		}
+
+		return ArmourPieceFlagBits::APF_NONE;
+	}
+
+	//bool ArmourDataManager::armourSetHasPiece(const ArmourSet& set, const ArmourPiece& piece) const {
+	//	if (knownNpcPrefabs.contains(set)) return piece == ArmourPiece::AP_BODY; // All prefabs apply under 'body' only
+
+	//	auto it = knownArmourSeries.find(set);
+	//	if (it != knownArmourSeries.end()) {
+	//		ArmourPieceFlags pieces = armourSeriesIDMappings.at(it->second).residentPieces;
+	//		return pieces & getArmourPieceFlag(piece);
+	//	}
+
+	//	return false;
+	//}
+
+	void ArmourDataManager::getArmourMappings() {
+		armourSeriesIDMappings = getArmorSeriesData();
+		npcPrefabToArmourSetMap = getNpcArmorData();
+
+		knownArmourSeries.clear();
+		knownNpcPrefabs.clear();
+
+		// generate resident piece mappings, and reverse lookup for quick indexing later
+		for (const auto& [id, data] : armourSeriesIDMappings) {
+			ArmourSet s{ data.name, data.female };
+			knownArmourSeries.emplace(s, id);
+		}
+		for (const auto& [prefabPth, data] : npcPrefabToArmourSetMap) {
+			if (data.femaleCanUse) {
+				ArmourSet sf{ data.name, true };
+				knownNpcPrefabs.emplace(sf, prefabPth);
+			}
+			if (data.maleCanUse) {
+				ArmourSet sm{ data.name, false };
+				knownNpcPrefabs.emplace(sm, prefabPth);
+			}
+		}
+	}
+
+	ArmourPieceFlags ArmourDataManager::getResidentArmourPieces(size_t armorSeries) const {
+		size_t minPartIdx = static_cast<size_t>(ArmorParts::MIN);
+		size_t maxPartIdx = static_cast<size_t>(ArmorParts::MAX_EXCLUDING_SLINGER);
+
+		ArmourPieceFlags flags = ArmourPieceFlagBits::APF_NONE;
+		for (size_t partIdx = minPartIdx; partIdx < maxPartIdx; partIdx++) {
+			REApi::ManagedObject* armorData = REInvokeStaticPtr<REApi::ManagedObject>(
+				"app.ArmorDef",
+				"Data(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)",
+				{ (void*)partIdx, (void*)armorSeries });
+
+			REApi::ManagedObject* outerArmorData = REInvokeStaticPtr<REApi::ManagedObject>(
+				"app.ArmorDef",
+				"OuterArmorData(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)",
+				{ (void*)partIdx, (void*)armorSeries });
+
+			if (armorData || outerArmorData) {
+				flags |= (1 << (1 + partIdx));
+				//DEBUG_STACK.fpush<LOG_TAG>("Found piece name: {}. Flags: {}", partIdx, to_binary_string(flags));
+			}
+			//else {
+			//	DEBUG_STACK.fpush<LOG_TAG>("No piece!");
+			//}
+		}
+
+		return flags;
+	}
+
+	std::optional<ArmourSet> ArmourDataManager::getArmourSetFromPrefabName(const std::string& prefabName) {
+		auto setIdOpt = getArmourSetIDFromPrefabName(prefabName);
+		if (!setIdOpt.has_value()) return std::nullopt;
+		ArmourSet set = getArmourSetFromArmourID(setIdOpt.value());
+		if (set == ArmourSet::DEFAULT) return std::nullopt; // couldn't find a valid set for this id
+
+		return set;
+	}
+
+	std::optional<ArmorSetID> ArmourDataManager::getArmourSetIDFromPrefabName(const std::string& prefabName) {
+		// Expects a path like ch03_XXX_YYY1
+		// XXX gets parsed as the series id, and YYY as the subId.
+
+		static const std::regex re(R"(^[^_]+_(\d+)_(\d+))");
+
+		std::smatch match;
+		if (!std::regex_search(prefabName, match, re) || match.size() < 3)
+			return std::nullopt;
+
+		try
+		{
+			ArmorSetID result;
+			result.id = static_cast<uint32_t>(std::stoul(match[1].str()));
+			result.subId = static_cast<uint32_t>(std::stoul(match[2].str()));
+			return result;
+		}
+		catch (...)
+		{
+			return std::nullopt;
+		}
+	}
+
 	ArmorSeriesIDMap ArmourDataManager::getArmorSeriesData() {
 		// Hunter Armors
 		ArmorSeriesIDMap hunterArmors = getHunterArmorData();
@@ -141,10 +308,20 @@ namespace kbf {
 
 				std::string seriesStem = getArmorSeriesNameStem(armorSeriesName);
 
+				ArmourPieceFlags residentPieces = getResidentArmourPieces(i);
+
+				//DEBUG_STACK.fpush<LOG_TAG>("Armor Series {} has resident pieces: {}{}{}{}{}",
+				//	armorSeriesName,
+				//	residentPieces & ArmourPieceFlagBits::APF_HELM ? "H" : "_",
+				//	residentPieces & ArmourPieceFlagBits::APF_BODY ? "B" : "_",
+				//	residentPieces & ArmourPieceFlagBits::APF_ARMS ? "A" : "_",
+				//	residentPieces & ArmourPieceFlagBits::APF_COIL ? "C" : "_",
+				//	residentPieces & ArmourPieceFlagBits::APF_LEGS ? "L" : "_");
+
 				// Try insert, if already exists then update ranks
 				auto [it, inserted] = map.try_emplace(
 					setId,
-					ArmorSeriesData{ seriesStem, isFemale, ranks }
+					ArmorSeriesData{ seriesStem, isFemale, ranks, residentPieces }
 				);
 
 				if (!inserted) {
@@ -198,7 +375,7 @@ namespace kbf {
 			ArmorSeriesDisplayRank ranks = getArmorSeriesDisplayRank(innerName);
 			std::string innerStem = getArmorSeriesNameStem(innerName);
 
-			map.emplace(innerID, ArmorSeriesData{ innerStem, female, ranks });
+			map.emplace(innerID, ArmorSeriesData{ innerStem, female, ranks, ArmourPieceFlagBits::APF_ALL ^ ArmourPieceFlagBits::APF_SET}); // Always have every piece
 
 			DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_SUCCESS, "Fetched Inner Armour Set Idx {}: {}", i, innerName);
 		}

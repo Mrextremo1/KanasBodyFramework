@@ -16,14 +16,8 @@ namespace kbf {
         armour{ armour },
         wsSymbolFont{ wsSymbolFont }
     {
-        ArmourID armourID = ArmourList::getArmourIdFromSet(armour.set);
-
-        disabledHeaders = ArmourPieceFlagBits::APF_NONE;
-        if (!armourID.hasPiece(ArmourPiece::AP_HELM)) disabledHeaders |= ArmourPieceFlagBits::APF_HELM;
-        if (!armourID.hasPiece(ArmourPiece::AP_BODY)) disabledHeaders |= ArmourPieceFlagBits::APF_BODY;
-        if (!armourID.hasPiece(ArmourPiece::AP_ARMS)) disabledHeaders |= ArmourPieceFlagBits::APF_ARMS;
-        if (!armourID.hasPiece(ArmourPiece::AP_COIL)) disabledHeaders |= ArmourPieceFlagBits::APF_COIL;
-        if (!armourID.hasPiece(ArmourPiece::AP_LEGS)) disabledHeaders |= ArmourPieceFlagBits::APF_LEGS;
+        ArmourPieceFlags pieces = ArmourDataManager::get().getResidentArmourPieces(armour.set);
+        disabledHeaders = ~pieces;
     }
 
     bool MaterialPanel::draw() {

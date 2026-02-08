@@ -183,14 +183,14 @@ namespace kbf {
         // No tag
         // -------------------
         template <typename... Args>
-        void fpush(std::string_view fmt, Args&&... args) {
+        void fpush(std::format_string<Args...> fmt, Args&&... args) {
             fpush(Color::COL_DEBUG, fmt, std::forward<Args>(args)...);
         }
 
         template <typename... Args>
-        void fpush(Color color, std::string_view fmt, Args&&... args) {
+        void fpush(Color color, std::format_string<Args...> fmt, Args&&... args) {
             push(LogData{
-                format(fmt, std::forward<Args>(args)...),
+                std::format(fmt, std::forward<Args>(args)...),
                 getColor(color),
                 now()
                 });

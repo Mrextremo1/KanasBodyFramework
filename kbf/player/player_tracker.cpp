@@ -1298,16 +1298,16 @@ namespace kbf {
             ArmourSet expectedSlinger = pInfo.armourInfo.slinger.value_or({ "UNKNOWN!", false });
 
             DEBUG_STACK.push(std::format("{} Failed to fetch armour transforms for Player: {} [{}]."
-                "\nExpecting the following transforms:\n   Head:    {} ({})\n   Body:    {} ({})\n   Arms:    {} ({})\n   Waist:   {} ({})\n   Legs:    {} ({})\n   Slinger: {} ({})"
+                "\nExpecting the following transforms:\n   Head:    {}\n   Body:    {}\n   Arms:    {}\n   Waist:   {}\n   Legs:    {}\n   Slinger: {}"
                 "\nDumped the following transforms:"
                 "\n{}",
                 PLAYER_TRACKER_LOG_TAG, info.playerData.name, i,
-                ArmourList::getArmourId(expectedHelm, ArmourPiece::AP_HELM, expectedHelm.female),          expectedHelm.name,
-                ArmourList::getArmourId(expectedBody, ArmourPiece::AP_BODY, expectedBody.female),          expectedBody.name,
-                ArmourList::getArmourId(expectedArms, ArmourPiece::AP_ARMS, expectedArms.female),          expectedArms.name,
-                ArmourList::getArmourId(expectedCoil, ArmourPiece::AP_COIL, expectedCoil.female),          expectedCoil.name,
-                ArmourList::getArmourId(expectedLegs, ArmourPiece::AP_LEGS, expectedLegs.female),          expectedLegs.name,
-                ArmourList::getArmourId(expectedSlinger, ArmourPiece::AP_SLINGER, expectedSlinger.female), expectedSlinger.name,
+                expectedHelm.name,
+                expectedBody.name,
+                expectedArms.name,
+                expectedCoil.name,
+                expectedLegs.name,
+                expectedSlinger.name,
                 dumpTransformTreeString(info.pointers.Transform)
             ), DebugStack::Color::COL_DEBUG);
             return false;

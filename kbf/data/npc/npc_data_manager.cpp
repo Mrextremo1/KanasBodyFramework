@@ -33,19 +33,19 @@ namespace kbf {
 		bool gotNumNpcIDs = false;
 		const size_t numNpcIDs = REEnum(td_NpcID, "MAX", gotNumNpcIDs);
 		if (!gotNumNpcIDs) {
-			DEBUG_STACK.push("Failed to get number of NPC ID definitions!", DebugStack::Color::COL_ERROR);
+			DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_ERROR, "Failed to get number of NPC ID definitions!");
 			return data;
 		}
 
 		size_t cappedNumNpcIDs = std::min<size_t>(NPC_ID_FETCH_CAP, numNpcIDs);
-		DEBUG_STACK.push(std::format("Attempting to fetch {} NPC datas", cappedNumNpcIDs));
+		DEBUG_STACK.fpush<LOG_TAG>("Attempting to fetch {} NPC datas", cappedNumNpcIDs);
 
 		for (size_t i = 0; i < cappedNumNpcIDs; i++) {
 			std::string npcName = REInvokeStaticStr("app.NpcUtil", "getNpcName(app.NpcDef.ID)", { (void*)i });
 			if (npcName.empty()) continue;
 			if (npcName[0] == '<') continue; // Reject names that start with '<', there's a bunch like <COLOR....>Rejected</COLOR>
 
-			DEBUG_STACK.push(std::format("Fetching NPC Data for Idx {}: {}", i, npcName));
+			DEBUG_STACK.fpush<LOG_TAG>("Fetching NPC Data for Idx {}: {}", i, npcName);
 
 			data.emplace(i, NpcData{ i, npcName, false, getNpcTypeFromID(i) });
 			

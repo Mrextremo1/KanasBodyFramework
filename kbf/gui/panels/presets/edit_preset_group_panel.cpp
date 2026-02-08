@@ -3,7 +3,6 @@
 #include <kbf/data/ids/font_symbols.hpp>
 #include <kbf/data/ids/special_armour_ids.hpp>
 #include <kbf/data/ids/preset_ids.hpp>
-#include <kbf/data/armour/armour_list.hpp>
 #include <kbf/util/id/uuid_generator.hpp>
 #include <kbf/util/functional/invoke_callback.hpp>
 #include <kbf/debug/debug_stack.hpp>

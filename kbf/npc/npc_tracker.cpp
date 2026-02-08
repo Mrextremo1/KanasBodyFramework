@@ -3,22 +3,20 @@
 
 #include <kbf/hook/hook_manager.hpp>
 
-#include <kbf/npc/get_npc_id.hpp>
-#include <kbf/data/armour/armour_list.hpp>
+#include <kbf/enums/armor_parts.hpp>
+#include <kbf/data/npc/npc_data_manager.hpp>
 #include <kbf/data/armour/find_object_armours.hpp>
 #include <kbf/util/re_engine/reinvoke.hpp>
 #include <kbf/util/string/ptr_to_hex_string.hpp>
-#include <kbf/npc/get_npc_name.hpp>
 #include <kbf/util/re_engine/print_re_object.hpp>
 #include <kbf/data/armour/format_full_armour_id.hpp>
 #include <kbf/util/re_engine/find_transform.hpp>
 #include <kbf/util/re_engine/dump_components.hpp>
 #include <kbf/util/re_engine/re_memory_ptr.hpp>
 #include <kbf/debug/debug_stack.hpp>
+#include <kbf/data/ids/special_armour_ids.hpp>
 
 #include <kbf/profiling/cpu_profiler.hpp>
-
-#define NPC_TRACKER_LOG_TAG "[NpcTracker]"
 
 using REApi = reframework::API;
 
@@ -347,7 +345,7 @@ namespace kbf {
 		if (gameobj) gameObjName = REInvokeStr(gameobj, "get_Name", {});
 
         pInfo.armourInfo.body = findFirstNPCArmourInObjectFromList(info.pointers.Transform);
-        pInfo.npcID = getNpcID(gameObjName, pInfo.armourInfo.body.value());
+        pInfo.npcID = NpcDataManager::get().getNpcTypeFromID(info.index);
 
         return pInfo.armourInfo.body.value() != ArmourSet::DEFAULT;
     }
@@ -520,7 +518,7 @@ namespace kbf {
         if (!fetchedArmour) {
             tryFetchCountTable[i]++;
             if (tryFetchCountTable[i] >= TRY_FETCH_LIMIT) {
-                DEBUG_STACK.push(std::format("{} Failed to find NPC [{}] Armour info {} times. The NPC is probably invalid, skipping for now...", NPC_TRACKER_LOG_TAG, i, TRY_FETCH_LIMIT), DebugStack::Color::COL_WARNING);
+                DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_WARNING, "Failed to find NPC [{}] Armour info {} times. The NPC is probably invalid, skipping for now...", i, TRY_FETCH_LIMIT);
             }
             return false;
         }
@@ -531,7 +529,7 @@ namespace kbf {
         if (!fetchedArmourTransforms) {
             tryFetchCountTable[i]++;
             if (tryFetchCountTable[i] >= TRY_FETCH_LIMIT) {
-                DEBUG_STACK.push(std::format("{} Failed to find NPC [{}] Armour Transforms {} times. The NPC is probably invalid, skipping for now...", NPC_TRACKER_LOG_TAG, i, TRY_FETCH_LIMIT), DebugStack::Color::COL_WARNING);
+                DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_WARNING, "Failed to find NPC [{}] Armour Transforms {} times. The NPC is probably invalid, skipping for now...", i, TRY_FETCH_LIMIT);
             }
             return false;
         }
@@ -542,7 +540,7 @@ namespace kbf {
         if (!fetchedBones) {
             tryFetchCountTable[i]++;
             if (tryFetchCountTable[i] >= TRY_FETCH_LIMIT) {
-                DEBUG_STACK.push(std::format("{} Failed to find NPC [{}] Bones {} times. The NPC is probably invalid, skipping for now...", NPC_TRACKER_LOG_TAG, i, TRY_FETCH_LIMIT), DebugStack::Color::COL_WARNING);
+                DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_WARNING, "Failed to find NPC [{}] Bones {} times. The NPC is probably invalid, skipping for now...", i, TRY_FETCH_LIMIT);
             }
             return false;
         }
@@ -553,7 +551,7 @@ namespace kbf {
         if (!fetchedParts) {
             tryFetchCountTable[i]++;
             if (tryFetchCountTable[i] >= TRY_FETCH_LIMIT) {
-                DEBUG_STACK.push(std::format("{} Failed to find NPC [{}] Parts {} times. The NPC is probably invalid, skipping for now...", NPC_TRACKER_LOG_TAG, i, TRY_FETCH_LIMIT), DebugStack::Color::COL_WARNING);
+                DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_WARNING, "Failed to find NPC [{}] Parts {} times. The NPC is probably invalid, skipping for now...", i, TRY_FETCH_LIMIT);
             }
             return false;
         }
@@ -564,7 +562,7 @@ namespace kbf {
         if (!fetchedMats) {
             tryFetchCountTable[i]++;
             if (tryFetchCountTable[i] >= TRY_FETCH_LIMIT) {
-                DEBUG_STACK.push(std::format("{} Failed to find NPC [{}] Materials {} times. The NPC is probably invalid, skipping for now...", NPC_TRACKER_LOG_TAG, i, TRY_FETCH_LIMIT), DebugStack::Color::COL_WARNING);
+                DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_WARNING, "Failed to find NPC [{}] Materials {} times. The NPC is probably invalid, skipping for now...", i, TRY_FETCH_LIMIT);
             }
             return false;
         }
@@ -600,35 +598,77 @@ namespace kbf {
         // Base transform is fetched every frame
         pInfo.Transform_base = info.pointers.Transform;
 
-        // TODO: Can probably reduce to 1, 100
-        constexpr size_t maxDepth = 1;
-        constexpr size_t maxBreadth = 100;
+        if (!info.prefabPath.empty()) {
+			pInfo.Transform_body = ArmourDataManager::get().getNpcPrefabPrimaryTransform(info.prefabPath, pInfo.Transform_base);
+            if (!pInfo.Transform_body) {
+				DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_ERROR, "Failed to find primary armour transform for NPC [{}] with prefab [{}]!", pInfo.index, info.prefabPath);
+            }
+        }
 
-        if (pInfo.armourInfo.helm.has_value()) {
-            std::string helmId = ArmourList::getArmourId(pInfo.armourInfo.helm.value(), ArmourPiece::AP_HELM, info.female);
-            pInfo.Transform_helm = findTransform(info.pointers.Transform, helmId);
-        }
-        if (pInfo.armourInfo.body.has_value()) {
-            std::string bodyId = ArmourList::getArmourId(pInfo.armourInfo.body.value(), ArmourPiece::AP_BODY, info.female);
-            pInfo.Transform_body = findTransform(info.pointers.Transform, bodyId);
-        }
-        if (pInfo.armourInfo.arms.has_value()) {
-            std::string armsId = ArmourList::getArmourId(pInfo.armourInfo.arms.value(), ArmourPiece::AP_ARMS, info.female);
-            pInfo.Transform_arms = findTransform(info.pointers.Transform, armsId);
-        }
-        if (pInfo.armourInfo.coil.has_value()) {
-            std::string coilId = ArmourList::getArmourId(pInfo.armourInfo.coil.value(), ArmourPiece::AP_COIL, info.female);
-            pInfo.Transform_coil = findTransform(info.pointers.Transform, coilId);
-        }
-        if (pInfo.armourInfo.legs.has_value()) {
-            std::string legsId = ArmourList::getArmourId(pInfo.armourInfo.legs.value(), ArmourPiece::AP_LEGS, info.female);
-            pInfo.Transform_legs = findTransform(info.pointers.Transform, legsId);
-        }
-        if (pInfo.armourInfo.slinger.has_value()) {
-            std::string slingerId = ArmourList::getArmourId(pInfo.armourInfo.slinger.value(), ArmourPiece::AP_SLINGER, info.female);
-            REApi::ManagedObject* slingerTransform = findTransform(info.pointers.Transform, slingerId);
-            pInfo.Slinger_GameObject = (slingerTransform) ? REInvokePtr<REApi::ManagedObject>(slingerTransform, "get_GameObject", {}) : nullptr;
-        }
+		REApi::ManagedObject* mcCharaMakeController = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "get_CharaMakeController", {});
+		if (mcCharaMakeController == nullptr) return false;
+
+        //REApi::ManagedObject* helmGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM });
+        //REApi::ManagedObject* bodyGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY });
+        //REApi::ManagedObject* armsGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS });
+        //REApi::ManagedObject* coilGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL });
+        //REApi::ManagedObject* legsGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS });
+
+        //DEBUG_STACK.fpush("Test NPC armour objects:\n{}\n{}\n{}\n{}\n{}",
+        //    ptrToHexString(helmGameObj),
+        //    ptrToHexString(bodyGameObj), 
+        //    ptrToHexString(armsGameObj), 
+        //    ptrToHexString(coilGameObj),
+        //    ptrToHexString(legsGameObj));
+
+        // TODO: The NPC's HunterCharacter obj can either be app.HunterCharacter(easy, good) or app.NpcCharacter(harder, bad). Treat each differently.
+
+        //REApi::ManagedObject* helmGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM });
+        //REApi::ManagedObject* bodyGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY });
+        //REApi::ManagedObject* armsGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS });
+        //REApi::ManagedObject* coilGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL });
+        //REApi::ManagedObject* legsGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS });
+
+        //pInfo.Transform_helm = (helmGameObj) ? REInvokePtr<REApi::ManagedObject>(helmGameObj, "get_Transform", {}) : nullptr;
+        //pInfo.Transform_body = (bodyGameObj) ? REInvokePtr<REApi::ManagedObject>(bodyGameObj, "get_Transform", {}) : nullptr;
+        //pInfo.Transform_arms = (armsGameObj) ? REInvokePtr<REApi::ManagedObject>(armsGameObj, "get_Transform", {}) : nullptr;
+        //pInfo.Transform_coil = (coilGameObj) ? REInvokePtr<REApi::ManagedObject>(coilGameObj, "get_Transform", {}) : nullptr;
+        //pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
+
+        //REApi::ManagedObject* slingerGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
+
+        // TODO: Can probably reduce to 1, 100
+        //constexpr size_t maxDepth = 1;
+        //constexpr size_t maxBreadth = 100;
+
+
+        // TODO: Need to fetch this from some like cHunterEquipInfo or something.
+        
+        //if (pInfo.armourInfo.helm.has_value()) {
+        //    std::string helmId = ArmourList::getArmourId(pInfo.armourInfo.helm.value(), ArmourPiece::AP_HELM, info.female);
+        //    pInfo.Transform_helm = findTransform(info.pointers.Transform, helmId);
+        //}
+        //if (pInfo.armourInfo.body.has_value()) {
+        //    std::string bodyId = ArmourList::getArmourId(pInfo.armourInfo.body.value(), ArmourPiece::AP_BODY, info.female);
+        //    pInfo.Transform_body = findTransform(info.pointers.Transform, bodyId);
+        //}
+        //if (pInfo.armourInfo.arms.has_value()) {
+        //    std::string armsId = ArmourList::getArmourId(pInfo.armourInfo.arms.value(), ArmourPiece::AP_ARMS, info.female);
+        //    pInfo.Transform_arms = findTransform(info.pointers.Transform, armsId);
+        //}
+        //if (pInfo.armourInfo.coil.has_value()) {
+        //    std::string coilId = ArmourList::getArmourId(pInfo.armourInfo.coil.value(), ArmourPiece::AP_COIL, info.female);
+        //    pInfo.Transform_coil = findTransform(info.pointers.Transform, coilId);
+        //}
+        //if (pInfo.armourInfo.legs.has_value()) {
+        //    std::string legsId = ArmourList::getArmourId(pInfo.armourInfo.legs.value(), ArmourPiece::AP_LEGS, info.female);
+        //    pInfo.Transform_legs = findTransform(info.pointers.Transform, legsId);
+        //}
+        //if (pInfo.armourInfo.slinger.has_value()) {
+        //    std::string slingerId = ArmourList::getArmourId(pInfo.armourInfo.slinger.value(), ArmourPiece::AP_SLINGER, info.female);
+        //    REApi::ManagedObject* slingerTransform = findTransform(info.pointers.Transform, slingerId);
+        //    pInfo.Slinger_GameObject = (slingerTransform) ? REInvokePtr<REApi::ManagedObject>(slingerTransform, "get_GameObject", {}) : nullptr;
+        //}
 
         return pInfo.Transform_body;
 	}
@@ -640,28 +680,46 @@ namespace kbf {
 
         // Npc will use a special npc armour set, i.e ch04_XXX_XXXX, that can be taken directly from this path.
         if (!info.prefabPath.empty()) {
-            std::string strId = armourIdFromPrefabPath(info.prefabPath);
-            pInfo.armourInfo.body = ArmourList::getArmourSetFromId(strId);
+            //std::string strId = armourIdFromPrefabPath(info.prefabPath);
+            pInfo.armourInfo.body = ArmourDataManager::get().getArmourSetFromNpcPrefab(info.prefabPath, info.female);
         }
         else {
-            std::array<ArmourSet, 6> foundArmours = findAllArmoursInObjectFromList(info.pointers.Transform, info.female);
-            pInfo.armourInfo.helm    = foundArmours[static_cast<size_t>(ArmourPiece::AP_HELM)    - 1];
-            pInfo.armourInfo.body    = foundArmours[static_cast<size_t>(ArmourPiece::AP_BODY)    - 1];
-            pInfo.armourInfo.arms    = foundArmours[static_cast<size_t>(ArmourPiece::AP_ARMS)    - 1];
-            pInfo.armourInfo.coil    = foundArmours[static_cast<size_t>(ArmourPiece::AP_COIL)    - 1];
-            pInfo.armourInfo.legs    = foundArmours[static_cast<size_t>(ArmourPiece::AP_LEGS)    - 1];
-			pInfo.armourInfo.slinger = foundArmours[static_cast<size_t>(ArmourPiece::AP_SLINGER) - 1];
+            //ArmorSetID helmSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM }, InvokeReturnType::WORD);
+            //ArmorSetID bodySetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY }, InvokeReturnType::WORD);
+            //ArmorSetID armsSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS }, InvokeReturnType::WORD);
+            //ArmorSetID coilSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL }, InvokeReturnType::WORD);
+            //ArmorSetID legsSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS }, InvokeReturnType::WORD);
+            //ArmorSetID slingerSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER }, InvokeReturnType::WORD);
 
-            // No npcs actually wear helms lol
-            const ArmourSet helmPlaceholder{ "Alloy 0", false };
-			if (pInfo.armourInfo.helm == helmPlaceholder) pInfo.armourInfo.helm = ArmourSet::DEFAULT;
+            //ArmourDataManager& dataMgr = ArmourDataManager::get();
+
+            //pInfo.armourInfo.helm = dataMgr.getArmourSetFromArmourID(helmSetID);
+            //pInfo.armourInfo.body = dataMgr.getArmourSetFromArmourID(bodySetID);
+            //pInfo.armourInfo.arms = dataMgr.getArmourSetFromArmourID(armsSetID);
+            //pInfo.armourInfo.coil = dataMgr.getArmourSetFromArmourID(coilSetID);
+            //pInfo.armourInfo.legs = dataMgr.getArmourSetFromArmourID(legsSetID);
+            //pInfo.armourInfo.slinger = dataMgr.getArmourSetFromArmourID(slingerSetID);
+
+
+
+   //         std::array<ArmourSet, 6> foundArmours = findAllArmoursInObjectFromList(info.pointers.Transform, info.female);
+   //         pInfo.armourInfo.helm    = foundArmours[static_cast<size_t>(ArmourPiece::AP_HELM)    - 1];
+   //         pInfo.armourInfo.body    = foundArmours[static_cast<size_t>(ArmourPiece::AP_BODY)    - 1];
+   //         pInfo.armourInfo.arms    = foundArmours[static_cast<size_t>(ArmourPiece::AP_ARMS)    - 1];
+   //         pInfo.armourInfo.coil    = foundArmours[static_cast<size_t>(ArmourPiece::AP_COIL)    - 1];
+   //         pInfo.armourInfo.legs    = foundArmours[static_cast<size_t>(ArmourPiece::AP_LEGS)    - 1];
+			//pInfo.armourInfo.slinger = foundArmours[static_cast<size_t>(ArmourPiece::AP_SLINGER) - 1];
+
+   //         // No npcs actually wear helms lol
+   //         const ArmourSet helmPlaceholder{ "Alloy 0", false };
+			//if (pInfo.armourInfo.helm == helmPlaceholder) pInfo.armourInfo.helm = ArmourSet::DEFAULT;
         }
 
         std::string gameObjName = "";
         REApi::ManagedObject* gameobj = REInvokePtr<REApi::ManagedObject>(info.pointers.Transform, "get_GameObject", {});
         if (gameobj) gameObjName = REInvokeStr(gameobj, "get_Name", {});
 
-		pInfo.npcID = getNpcID(gameObjName, pInfo.armourInfo.body.value());
+        pInfo.npcID = NpcDataManager::get().getNpcTypeFromID(info.index);
 
         return pInfo.armourInfo.body.value() != ArmourSet::DEFAULT;
     }

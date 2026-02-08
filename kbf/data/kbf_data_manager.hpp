@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kbf/data/npc/npc_type.hpp>
 #include <kbf/data/file/kbf_file_type.hpp>
 #include <kbf/data/bones/bone_cache_manager.hpp>
 #include <kbf/data/mesh/parts/part_cache_manager.hpp>
@@ -12,8 +13,6 @@
 #include <kbf/data/preset/preset_defaults.hpp>
 #include <kbf/data/formats/kbf_file_data.hpp>
 #include <kbf/data/formats/kbf_settings.hpp>
-#include <kbf/data/armour/armour_list.hpp>
-#include <kbf/npc/npc_id.hpp>
 
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
@@ -99,10 +98,10 @@ namespace kbf {
 		const PlayerOverride* getPlayerOverride(const PlayerData& player) const { return const_cast<KBFDataManager*>(this)->getPlayerOverride(player); }
 
 		const PresetGroup* getActivePresetGroup(const PlayerData& player) const;
-		const PresetGroup* getActivePresetGroup(NpcID npcID, bool female) const;
+		const PresetGroup* getActivePresetGroup(NpcType npcID, bool female) const;
 		const PresetGroup* getActiveDefaultPlayerPresetGroup(bool female) const;
 		const Preset* getActivePreset(const PlayerData& player, const ArmourSet& armourSet, ArmourPiece piece) const;
-		const Preset* getActivePreset(NpcID npcId, bool female, const ArmourSet& armourSet, ArmourPiece piece) const;
+		const Preset* getActivePreset(NpcType npcId, bool female, const ArmourSet& armourSet, ArmourPiece piece) const;
 
 		std::vector<const Preset*> getPresets(const std::string& filter = "", ArmourPieceFlags pieceFilters = APF_NONE, bool sort = false) const;
 		std::vector<std::string> getPresetBundles(const std::string& filter = "", bool sort = false) const;
@@ -113,7 +112,6 @@ namespace kbf {
 
 		std::vector<std::string> getPresetIds(const std::string& filter = "", ArmourPieceFlags pieceFilters = APF_NONE, bool sort = false) const;
 		std::vector<std::string> getPresetGroupIds(const std::string& filter = "", bool sort = false) const;
-		std::vector<std::string> getPlayerOverrideIds(const std::string& filter = "", bool sort = false) const;
 
 		bool addPreset(const Preset& preset, bool write = true);
 		bool addPresetGroup(const PresetGroup& presetGroup, bool write = true);
@@ -260,11 +258,6 @@ namespace kbf {
 		void validatePresetGroups();
 		void validateDefaultConfigs_Presets();
 		bool validatePresetExists(std::string& uuid) const;
-
-		bool loadArmourList(const std::filesystem::path& path, ArmourMapping* out);
-		bool loadArmourListData(const rapidjson::Value& doc, ArmourMapping* out) const;
-		bool writeArmourList(const std::filesystem::path& path, const ArmourMapping& mapping) const;
-		void writeArmourListJsonContent(const ArmourMapping& mapping, rapidjson::PrettyWriter<rapidjson::StringBuffer>& writer) const;
 
 		KBFSettings m_settings;
 		BoneCacheManager m_boneCacheManager{ CacheManagerType::BONES, boneCachePath };
