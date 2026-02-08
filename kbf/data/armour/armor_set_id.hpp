@@ -3,6 +3,7 @@
 #include <kbf/data/armour/armour_set.hpp>
 
 #include <unordered_map>
+#include <format>
 
 namespace kbf {
 
@@ -12,6 +13,10 @@ namespace kbf {
 
 		bool operator==(const ArmorSetID& other) const noexcept {
 			return id == other.id && subId == other.subId;
+		}
+
+		std::string toString() const {
+			return std::format("chXX_{:03}_{:03}X", id, subId);
 		}
 	};
 
