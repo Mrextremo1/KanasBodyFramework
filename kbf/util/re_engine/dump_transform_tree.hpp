@@ -23,11 +23,17 @@ namespace kbf {
 		std::string name = REInvokeStr(gameObject, "get_Name", {});
         if (!name.empty()) out.emplace_back(name);
 
-        // Recurse into children
-        collectNames(REInvokePtr<reframework::API::ManagedObject>(node, "get_Child", {}), out, depth + 1, maxDepth, 0, maxBreadth);
+        auto* child = REInvokePtr<reframework::API::ManagedObject>(node, "get_Child", {});
+        size_t childIndex = 0;
 
-        // Recurse into siblings
-        collectNames(REInvokePtr<reframework::API::ManagedObject>(node, "get_Next", {}), out, depth, maxDepth, breadth + 1, maxBreadth);
+        while (child != nullptr && childIndex <= maxBreadth) {
+            auto* next = REInvokePtr<reframework::API::ManagedObject>(child, "get_Next", {});
+
+            collectNames(child, out, depth + 1, maxDepth, 0, maxBreadth);
+
+            child = next;
+            ++childIndex;
+        }
     }
 
     // Public API
