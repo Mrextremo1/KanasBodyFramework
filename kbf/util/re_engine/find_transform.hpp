@@ -64,7 +64,7 @@ namespace kbf {
 	inline std::vector<REApi::ManagedObject*> getAllTransformComponents(
 		REApi::ManagedObject* gameobject
 	) {
-		REApi::ManagedObject* transformType = REApi::get()->typeof("via.GameObject");
+		REApi::ManagedObject* transformType = REApi::get()->typeof("via.Transform");
 		if (transformType == nullptr) return {};
 
 		REApi::ManagedObject* compArr = REInvokePtr<REApi::ManagedObject>(
