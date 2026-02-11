@@ -7,6 +7,7 @@
 #include <kbf/player/player_fetch_flags.hpp>
 #include <kbf/situation/lobby_type.hpp>
 #include <kbf/situation/situation_watcher.hpp>
+#include <kbf/enums/armor_parts.hpp>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -55,8 +56,13 @@ namespace kbf {
         bool fetchPlayer_PersistentInfo(size_t i, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
 		void fetchPlayer_Visibility(PlayerInfo& info);
         bool fetchPlayer_EquippedArmours(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
-		bool fetchPlayer_ArmourTransforms(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
-		bool fetchPlayer_WeaponObjects(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+		bool fetchPlayer_EquippedArmours_FromSaveFile(const PlayerInfo& info, PersistentPlayerInfo& pInfo, int saveIdx = -1, bool overrideInner = false);
+        bool fetchPlayer_EquippedArmours_FromCharaMakeSceneController(REApi::ManagedObject* controller, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+        bool fetchPlayer_ArmourTransforms(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+        bool fetchPlayer_ArmourTransforms_FromEventModel(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+        bool fetchPlayer_ArmourTransforms_FromSaveSelectSceneController(REApi::ManagedObject* sceneController, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+		bool fetchPlayer_ArmourTransforms_FromCharaMakeSceneController(REApi::ManagedObject* sceneController, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+        bool fetchPlayer_WeaponObjects(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_Bones(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_Parts(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_Materials(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
@@ -70,8 +76,38 @@ namespace kbf {
 
         int detectPlayer(void* hunterCharacterPtr, const std::string& logStrSuffix);
 
+        // TODO: A lot of this could go in re_engine util calss
+        REApi::ManagedObject* getSaveDataObject(int saveIdx = -1);
+		static bool isSaveActive(REApi::ManagedObject* save);
         bool getSavePlayerData(int saveIdx, PlayerData& out);
         bool getActiveSavePlayerData(PlayerData& out);
+        
+        // Helpers for reading armour from save file
+        std::optional<ArmourSet> getArmourForPartFromSave(
+            REApi::ManagedObject* save,
+            REApi::ManagedObject* equip,
+            REApi::ManagedObject* outerSet,
+            REApi::ManagedObject* visible,
+            ArmorParts part,
+            bool overrideInner = false);
+        ArmorSetID resolveSaveVisibleArmour(
+            REApi::ManagedObject* equip,
+            ArmorParts part,
+            uint32_t outerSeries,
+            bool female);
+        bool resolveHunterAndController(
+            PlayerInfo& outInfo,
+            const PlayerData& hunter,
+            REApi::ManagedObject*& controllerOut,
+            REApi::ManagedObject*& hunterTransformCache,
+            REApi::ManagedObject*& sceneControllerCache,
+            const char* transformPrefixXX,
+            const char* transformPrefixXY,
+            const char* sceneControllerName,
+            const char* componentTypeName); // false = SaveSelect
+        std::optional<ArmorSetID> resolveSaveInnerArmour(REApi::ManagedObject* save, ArmorParts part);
+        std::optional<std::pair<uint32_t, bool>> getSaveOuterPartInfo(REApi::ManagedObject* outerSet, ArmorParts part);
+
         REApi::ManagedObject* getCurrentScene() const;
 
         void updateApplyDelays();
@@ -94,15 +130,18 @@ namespace kbf {
         // Save Select Refs
 		int lastSelectedSaveIdx = -1;
         reframework::API::ManagedObject* saveSelectHunterTransformCache = nullptr;
+        reframework::API::ManagedObject* saveSelectSceneControllerCache = nullptr;
         std::optional<size_t> saveSelectHashedArmourTransformsCache = std::nullopt;
 
         // Character Creator Refs
         reframework::API::ManagedObject* characterCreatorHunterTransformCache = nullptr;
+        reframework::API::ManagedObject* charaMakeSceneControllerCache        = nullptr;
         std::optional<size_t> characterCreatorHashedArmourTransformsCache = std::nullopt;
 
         // Guild Card Refs
         RESingleton guiManager{ "app.GUIManager" };
         reframework::API::ManagedObject* guildCardHunterTransformCache = nullptr;
+        reframework::API::ManagedObject* guildCardSceneControllerCache = nullptr;
         std::optional<size_t> guildCardHashedArmourTransformsCache = std::nullopt;
 
         // Normal Gameplay Refs

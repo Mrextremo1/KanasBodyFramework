@@ -12,6 +12,7 @@
 #include <kbf/util/re_engine/dump_components.hpp>
 #include <kbf/util/re_engine/print_re_object.hpp>
 #include <kbf/util/string/ptr_to_hex_string.hpp>
+#include <kbf/util/re_engine/get_component.hpp>
 #include <kbf/enums/armor_parts.hpp>
 #include <kbf/data/armour/armor_set_id.hpp>
 #include <kbf/data/armour/armour_data_manager.hpp>
@@ -25,14 +26,6 @@
 using REApi = reframework::API;
 
 namespace kbf {
-
-    // Notes:
-    //  | app.user_data should probably contain everything we need here.
-    //  | app.user_data.PlayerArmorList / .PlayerArmorVisualParam
-    //  | app.user_data.MemberListData might provide a way to get the player HunterID in online singleplayer, otherwise will have to cache and make do.
-    //  | A lot of info accessible from app.ArmorUtil
-    //  | ArmorSeriesData.cData provides an armour id -> name mapping.
-    //  | app.user_data.EquipDataSetting contains a bunch of equipment info
 
     PlayerTracker* PlayerTracker::g_instance = nullptr;
 
@@ -244,6 +237,7 @@ namespace kbf {
         occupiedNormalGameplaySlots.fill(false);
 
         saveSelectHunterTransformCache              = nullptr;
+        saveSelectSceneControllerCache              = nullptr;
         characterCreatorHunterTransformCache        = nullptr;
         guildCardHunterTransformCache               = nullptr;
         saveSelectHashedArmourTransformsCache       = std::nullopt;
@@ -307,7 +301,7 @@ namespace kbf {
         persistentInfo.index      = 0;
 
         //- Equipped Armours -------------------------------
-        bool fetchedArmours = fetchPlayer_EquippedArmours(info, persistentInfo);
+        bool fetchedArmours = fetchPlayer_EquippedArmours_FromSaveFile(info, persistentInfo);
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Main Menu - Equipped Armours");
 
         if (!fetchedArmours) {
@@ -321,11 +315,11 @@ namespace kbf {
         //- Armour Transforms ------------------------------
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Main Menu - Armour Transforms");
 
-        bool fetchedTransforms = fetchPlayer_ArmourTransforms(info, persistentInfo);
+        bool fetchedTransforms = fetchPlayer_ArmourTransforms_FromEventModel(info, persistentInfo);
         if (!fetchedTransforms) {
             DEBUG_STACK.push(std::format(
                 "{} Failed to fetch armour transforms for Main Menu Hunter: {} [{}]. Relevant info:\n"
-                "  Base @ {}\n  Helm: {} @ {}\n  Body: {} @ {}\n  Arms: {} @ {}\n  Coil: {} @ {}\n  Legs:{} @ {}",
+                "  Base @ {}\n  Helm: {} @ {}\n  Body: {} @ {}\n  Arms: {} @ {}\n  Coil: {} @ {}\n  Legs: {} @ {}",
                 PLAYER_TRACKER_LOG_TAG, info.playerData.name, info.playerData.hunterId,
                 ptrToHexString(persistentInfo.Transform_base),
                 persistentInfo.armourInfo.helm.has_value() ? persistentInfo.armourInfo.helm.value().name : "NULL", ptrToHexString(persistentInfo.Transform_helm),
@@ -441,9 +435,6 @@ namespace kbf {
 
         int32_t* equipAppearanceSaveIndex = REFieldPtr<int32_t>(mcPreviewHunterVisualController, "_EquipAppearanceSaveIndex");
         if (equipAppearanceSaveIndex == nullptr) return false;
-        // This is sketch af, the field ptr here is off by 0x10 for some reason... would be better to straight read the memmory.
-        // WARNING: This might change with game updates.
-        equipAppearanceSaveIndex = reinterpret_cast<int32_t*>((uintptr_t)equipAppearanceSaveIndex + 0x10);
 
         outSaveIdx = *equipAppearanceSaveIndex;
 
@@ -476,6 +467,7 @@ namespace kbf {
         bool fetchedBasicInfo = fetchPlayers_SaveSelect_BasicInfo(info);
         if (!fetchedBasicInfo) {
             saveSelectHunterTransformCache = nullptr;
+            saveSelectSceneControllerCache = nullptr;
             saveSelectHashedArmourTransformsCache = std::nullopt;
             return;
         }
@@ -490,7 +482,7 @@ namespace kbf {
         //- Equipped Armours -------------------------------
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Save Select - Equipped Armours");
 
-        bool fetchedArmours = fetchPlayer_EquippedArmours(info, persistentInfo);
+        bool fetchedArmours = fetchPlayer_EquippedArmours_FromSaveFile(info, persistentInfo, lastSelectedSaveIdx);
         if (!fetchedArmours) {
             return;
         }
@@ -501,7 +493,7 @@ namespace kbf {
         //- Armour Transforms ------------------------------
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Save Select - Armour Transforms");
 
-        bool fetchedTransforms = fetchPlayer_ArmourTransforms(info, persistentInfo);
+        bool fetchedTransforms = fetchPlayer_ArmourTransforms_FromSaveSelectSceneController(info.optionalPointers.SaveSelectSceneController, info, persistentInfo);
         if (!fetchedTransforms) {
             return;
         }
@@ -586,57 +578,29 @@ namespace kbf {
     }
 
     bool PlayerTracker::fetchPlayers_SaveSelect_BasicInfo(PlayerInfo& outInfo) {
-        PlayerData mainHunter{};
-        bool fetchedMainHunter = getSavePlayerData(lastSelectedSaveIdx, mainHunter);
-        if (!fetchedMainHunter) return false;
+        PlayerData hunter{};
+        if (!getSavePlayerData(lastSelectedSaveIdx, hunter))
+            return false;
 
         outInfo = PlayerInfo{};
 
-        bool usedCache = false;
-        if (saveSelectHunterTransformCache != nullptr) {
-            // Check the cache hasn't been invalidated
-            static const REApi::TypeDefinition* def_ViaTransform = REApi::get()->tdb()->find_type("via.Transform");
-            if (checkREPtrValidity(saveSelectHunterTransformCache, def_ViaTransform)) {
-                outInfo.pointers.Transform = saveSelectHunterTransformCache;
-                usedCache = true;
-            }
-        }
-        
-        if (!usedCache) {
-            REApi::ManagedObject* currentScene = getCurrentScene();
-            if (currentScene == nullptr) return false;
-
-            static const REApi::ManagedObject* transformType = REApi::get()->typeof("via.Transform");
-            REApi::ManagedObject* transformComponents = REInvokePtr<REApi::ManagedObject>(currentScene, "findComponents(System.Type)", { (void*)transformType });
-
-            // Mannequin_Hunter > SaveSelectHunter_XX / XY
-            constexpr const char* playerTransformNamePrefixXX = "SaveSelect_HunterXX";
-            constexpr const char* playerTransformNamePrefixXY = "SaveSelect_HunterXY";
-            const int numComponents = REInvoke<int>(transformComponents, "GetLength", { (void*)0 }, InvokeReturnType::DWORD);
-
-            for (int i = 0; i < numComponents; i++) {
-                REApi::ManagedObject* transform = REInvokePtr<REApi::ManagedObject>(transformComponents, "get_Item", { (void*)i });
-                if (transform == nullptr) continue;
-
-                REApi::ManagedObject* gameObject = REInvokePtr<REApi::ManagedObject>(transform, "get_GameObject", {});
-                if (gameObject == nullptr) continue;
-
-                // TODO: Choose based on char info
-                std::string name = REInvokeStr(gameObject, "get_Name", {});
-                if (name.starts_with(mainHunter.female ? playerTransformNamePrefixXX : playerTransformNamePrefixXY)) {
-                    outInfo.pointers.Transform = transform;
-                    saveSelectHunterTransformCache = transform;
-                    break;
-                }
-
-            }
-        }
+        if (!resolveHunterAndController(
+            outInfo,
+            hunter,
+            outInfo.optionalPointers.SaveSelectSceneController,
+            saveSelectHunterTransformCache,
+            saveSelectSceneControllerCache,
+            "SaveSelect_HunterXX",
+            "SaveSelect_HunterXY",
+            "SaveSelectSceneController",
+            "app.SaveSelectSceneController"
+        )) return false;
 
         int* visibilityPtr = re_memory_ptr<int>(outInfo.optionalPointers.VolumeOccludee, 0x2C9);
 
-        outInfo.playerData = mainHunter;
-        outInfo.index      = 0;
-        outInfo.visible    = true;
+        outInfo.playerData = hunter;
+        outInfo.index = 0;
+        outInfo.visible = true;
 
         return true;
     }
@@ -709,6 +673,7 @@ namespace kbf {
         if (!fetchedBasicInfo) {
             characterCreatorHunterTransformCache = nullptr;
             characterCreatorHashedArmourTransformsCache = std::nullopt;
+            charaMakeSceneControllerCache = nullptr;
             return;
         }
 
@@ -722,7 +687,7 @@ namespace kbf {
         //- Equipped Armours -------------------------------
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Character Creator - Equipped Armours");
 
-        bool fetchedArmours = fetchPlayer_EquippedArmours(info, persistentInfo);
+        bool fetchedArmours = fetchPlayer_EquippedArmours_FromCharaMakeSceneController(info.optionalPointers.CharaMakeSceneController, info, persistentInfo);
         if (!fetchedArmours) {
             return;
         }
@@ -733,7 +698,7 @@ namespace kbf {
         //- Armour Transforms ------------------------------
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Character Creator - Armour Transforms");
 
-        bool fetchedTransforms = fetchPlayer_ArmourTransforms(info, persistentInfo);
+        bool fetchedTransforms = fetchPlayer_ArmourTransforms_FromCharaMakeSceneController(info.optionalPointers.CharaMakeSceneController, info, persistentInfo);
         if (!fetchedTransforms) {
             return;
         }
@@ -807,57 +772,27 @@ namespace kbf {
 
     bool PlayerTracker::fetchPlayers_CharacterCreator_BasicInfo(PlayerInfo& outInfo) {
         PlayerData hunter{};
-        bool gotSaveData = false;
 
-        // If accessed from save select, use last hovered save idx, otherwise if from in-game, read from active save data.
-        if (SituationWatcher::inCustomSituation(CustomSituation::isInTitleMenus)) {
-            gotSaveData = getSavePlayerData(lastSelectedSaveIdx, hunter);
-        } 
-        else if (SituationWatcher::inCustomSituation(CustomSituation::isInGame)) {
-            gotSaveData = getActiveSavePlayerData(hunter);
-        } 
+        bool gotSaveData =
+            SituationWatcher::inCustomSituation(CustomSituation::isInGame)
+            ? getActiveSavePlayerData(hunter)
+            : getSavePlayerData(lastSelectedSaveIdx, hunter);
 
         if (!gotSaveData) return false;
 
         outInfo = PlayerInfo{};
 
-        bool usedCache = false;
-        if (saveSelectHunterTransformCache != nullptr) {
-            // Check the cache hasn't been invalidated
-            static const REApi::TypeDefinition* def_ViaTransform = REApi::get()->tdb()->find_type("via.Transform");
-            if (checkREPtrValidity(saveSelectHunterTransformCache, def_ViaTransform)) {
-                outInfo.pointers.Transform = saveSelectHunterTransformCache;
-                usedCache = true;
-            }
-        }
-
-        if (!usedCache) {
-            REApi::ManagedObject* currentScene = getCurrentScene();
-            if (currentScene == nullptr) return false;
-
-            static const REApi::ManagedObject* transformType = REApi::get()->typeof("via.Transform");
-            REApi::ManagedObject* transformComponents = REInvokePtr<REApi::ManagedObject>(currentScene, "findComponents(System.Type)", { (void*)transformType });
-
-            constexpr const char* playerTransformNamePrefixXX = "CharaMake_HunterXX";
-            constexpr const char* playerTransformNamePrefixXY = "CharaMake_HunterXY";
-            const int numComponents = REInvoke<int>(transformComponents, "GetLength", { (void*)0 }, InvokeReturnType::DWORD);
-
-            for (int i = 0; i < numComponents; i++) {
-                REApi::ManagedObject* transform = REInvokePtr<REApi::ManagedObject>(transformComponents, "get_Item", { (void*)i });
-                if (transform == nullptr) continue;
-
-                REApi::ManagedObject* gameObject = REInvokePtr<REApi::ManagedObject>(transform, "get_GameObject", {});
-                if (gameObject == nullptr) continue;
-
-                // TODO: Choose based on char info
-                std::string name = REInvokeStr(gameObject, "get_Name", {});
-                if (name.starts_with(hunter.female ? playerTransformNamePrefixXX : playerTransformNamePrefixXY)) {
-                    outInfo.pointers.Transform = transform;
-                    saveSelectHunterTransformCache = transform;
-                    break;
-                }
-            }
-        }
+        if (!resolveHunterAndController(
+            outInfo,
+            hunter,
+            outInfo.optionalPointers.CharaMakeSceneController,
+            characterCreatorHunterTransformCache,
+            charaMakeSceneControllerCache,
+            "CharaMake_HunterXX",
+            "CharaMake_HunterXY",
+            "CharaMakeSceneController",
+            "app.CharaMakeSceneController"
+        )) return false;
 
         outInfo.playerData = hunter;
         outInfo.index = 0;
@@ -1357,62 +1292,92 @@ namespace kbf {
 
         pInfo.armourInfo = ArmourInfo{}; // Reset
 
-        // Use this when in the smithy / already used once?? Maybe trigger usage from onEquipArmor thing??
-        WholeBodyArmorSetID* armourSetIDwholeBody = REFieldPtr<WholeBodyArmorSetID>(info.optionalPointers.cHunterCreateInfo, "ArmorSetID_WholeBody");
-        if (armourSetIDwholeBody == nullptr) return false;
+        // TODO: Gunna need a different function here that relies on finding the transforms like before to make menus work.
 
-      //  for (size_t i = 0; i < 241; i++) {
-      //      std::string helmName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::HELM, (void*)i }, LocalizationLanguage::English);
-		    //std::string bodyName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::BODY, (void*)i }, LocalizationLanguage::English);
-		    //std::string armsName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::ARMS, (void*)i }, LocalizationLanguage::English);
-		    //std::string coilName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::COIL, (void*)i }, LocalizationLanguage::English);
-		    //std::string legsName = REInvokeGuidStatic("app.ArmorDef", "Name(app.ArmorDef.ARMOR_PARTS, app.ArmorDef.SERIES)", { (void*)ArmorParts::LEGS, (void*)i }, LocalizationLanguage::English);
+        bool considerPreviews = false;
+        if (info.index == 0 && info.optionalPointers.cHunterCreateInfo) {
+            // Potentially handle previews for the main player
+            considerPreviews |= REInvoke<bool>(info.optionalPointers.cHunterCreateInfo, "get_IsFittingMode",    {}, InvokeReturnType::BOOL);
+			considerPreviews |= REInvoke<bool>(info.optionalPointers.cHunterCreateInfo, "get_IsArenaQuestMode", {}, InvokeReturnType::BOOL);
+        }
 
-		    //DEBUG_STACK.push(std::format("Helm: {} | {}", i, helmName), DebugStack::Color::COL_WARNING);
-		    //DEBUG_STACK.push(std::format("Body: {} | {}", i, bodyName), DebugStack::Color::COL_WARNING);
-		    //DEBUG_STACK.push(std::format("Arms: {} | {}", i, armsName), DebugStack::Color::COL_WARNING);
-		    //DEBUG_STACK.push(std::format("Coil: {} | {}", i, coilName), DebugStack::Color::COL_WARNING);
-		    //DEBUG_STACK.push(std::format("Legs: {} | {}", i, legsName), DebugStack::Color::COL_WARNING);
+        ArmourDataManager& dataMgr = ArmourDataManager::get();
+        if (considerPreviews) {
+            // Use this when in the smithy / already used once?? Maybe trigger usage from onEquipArmor thing??
+            WholeBodyArmorSetID* armourSetIDwholeBody = REFieldPtr<WholeBodyArmorSetID>(info.optionalPointers.cHunterCreateInfo, "ArmorSetID_WholeBody");
+            if (armourSetIDwholeBody == nullptr) return false;
 
-      //  }
+            pInfo.armourInfo.helm    = dataMgr.getArmourSetFromArmourID(armourSetIDwholeBody->helm);
+            pInfo.armourInfo.body    = dataMgr.getArmourSetFromArmourID(armourSetIDwholeBody->body);
+		    pInfo.armourInfo.arms    = dataMgr.getArmourSetFromArmourID(armourSetIDwholeBody->arms);
+		    pInfo.armourInfo.coil    = dataMgr.getArmourSetFromArmourID(armourSetIDwholeBody->coil);
+		    pInfo.armourInfo.legs    = dataMgr.getArmourSetFromArmourID(armourSetIDwholeBody->legs);
+            pInfo.armourInfo.slinger = std::nullopt;
+        }
+        else {
+            ArmorSetID helmSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM }, InvokeReturnType::WORD);
+            ArmorSetID bodySetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY }, InvokeReturnType::WORD);
+            ArmorSetID armsSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS }, InvokeReturnType::WORD);
+            ArmorSetID coilSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL }, InvokeReturnType::WORD);
+            ArmorSetID legsSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS }, InvokeReturnType::WORD);
+            ArmorSetID slingerSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER }, InvokeReturnType::WORD);
 
-        // TODO: We need to check each piece if it's NOT VISIBLE so we can fallback to inner armours.
-
-        //// This is EQUIPPED ARMOUR APPEARANCE ONLY
-        ArmorSetID helmSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM }, InvokeReturnType::WORD);
-        ArmorSetID bodySetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY }, InvokeReturnType::WORD);
-        ArmorSetID armsSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS }, InvokeReturnType::WORD);
-        ArmorSetID coilSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL }, InvokeReturnType::WORD);
-        ArmorSetID legsSetID    = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS }, InvokeReturnType::WORD);
-        ArmorSetID slingerSetID = REInvoke<ArmorSetID>(info.optionalPointers.HunterCharacter, "getArmorSetId(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER }, InvokeReturnType::WORD);
-
-		ArmourDataManager& dataMgr = ArmourDataManager::get();
-
-        pInfo.armourInfo.helm    = dataMgr.getArmourSetFromArmourID(helmSetID);
-        pInfo.armourInfo.body    = dataMgr.getArmourSetFromArmourID(bodySetID);
-		pInfo.armourInfo.arms    = dataMgr.getArmourSetFromArmourID(armsSetID);
-		pInfo.armourInfo.coil    = dataMgr.getArmourSetFromArmourID(coilSetID);
-		pInfo.armourInfo.legs    = dataMgr.getArmourSetFromArmourID(legsSetID);
-		pInfo.armourInfo.slinger = dataMgr.getArmourSetFromArmourID(slingerSetID);
-
-        //// The PREVIEW ARMOR APPREARANCE can be found at:
-        //// app.cPlayerManageControl -> _RequestedReloadingCreateInfo -> ArmorSetID_WholeBody
-
-        //// The GAMEOBJECTS holding these parts SHOULD be found at HunterCharacter:getParts(app.ArmorDef.ARMOR_PARTS)
-
-        //DEBUG_STACK.push(std::format("helm: {}", helmSetID.id), DebugStack::Color::COL_WARNING);
-        //DEBUG_STACK.push(std::format("body: {}", bodySetID.id), DebugStack::Color::COL_WARNING);
-        //DEBUG_STACK.push(std::format("arms: {}", armsSetID.id), DebugStack::Color::COL_WARNING);
-        //DEBUG_STACK.push(std::format("coil: {}", coilSetID.id), DebugStack::Color::COL_WARNING);
-        //DEBUG_STACK.push(std::format("legs: {}", legsSetID.id), DebugStack::Color::COL_WARNING);
-        //DEBUG_STACK.push(std::format("slinger: {}", slingerSetID.id), DebugStack::Color::COL_WARNING);
-        ///// -------------------
+            pInfo.armourInfo.helm    = dataMgr.getArmourSetFromArmourID(helmSetID);
+            pInfo.armourInfo.body    = dataMgr.getArmourSetFromArmourID(bodySetID);
+		    pInfo.armourInfo.arms    = dataMgr.getArmourSetFromArmourID(armsSetID);
+		    pInfo.armourInfo.coil    = dataMgr.getArmourSetFromArmourID(coilSetID);
+		    pInfo.armourInfo.legs    = dataMgr.getArmourSetFromArmourID(legsSetID);
+		    pInfo.armourInfo.slinger = dataMgr.getArmourSetFromArmourID(slingerSetID);
+        }
 
         return true;
     }
 
+    bool PlayerTracker::fetchPlayer_EquippedArmours_FromSaveFile(const PlayerInfo& info, PersistentPlayerInfo& pInfo, int saveIdx, bool overrideInner) {
+        if (saveIdx >= 3)
+            return false;
+
+        REApi::ManagedObject* save = getSaveDataObject(saveIdx);
+        if (!save || !isSaveActive(save))
+            return false;
+
+        REApi::ManagedObject* equip = REInvokePtr<REApi::ManagedObject>(save, "get_Equip", {});
+        if (!equip)
+            return false;
+
+        REApi::ManagedObject* outerSet = REInvokePtr<REApi::ManagedObject>(equip, "get_OuterArmorCurrent", {});
+        REApi::ManagedObject* visible = REInvokePtr<REApi::ManagedObject>(equip, "get_EquipVisible", {});
+        if (!outerSet || !visible)
+            return false;
+
+        pInfo.armourInfo.helm = getArmourForPartFromSave(save, equip, outerSet, visible, ArmorParts::HELM, overrideInner);
+        pInfo.armourInfo.body = getArmourForPartFromSave(save, equip, outerSet, visible, ArmorParts::BODY, overrideInner);
+        pInfo.armourInfo.arms = getArmourForPartFromSave(save, equip, outerSet, visible, ArmorParts::ARMS, overrideInner);
+        pInfo.armourInfo.coil = getArmourForPartFromSave(save, equip, outerSet, visible, ArmorParts::COIL, overrideInner);
+        pInfo.armourInfo.legs = getArmourForPartFromSave(save, equip, outerSet, visible, ArmorParts::LEGS, overrideInner);
+
+        return true;
+    }
+
+    bool PlayerTracker::fetchPlayer_EquippedArmours_FromCharaMakeSceneController(REApi::ManagedObject* controller, const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
+        if (!controller) return false;
+
+		REApi::ManagedObject* hunterDoll = REFieldPtr<REApi::ManagedObject>(controller, "_HunterDoll");
+		if (!hunterDoll) return false;
+
+		REApi::ManagedObject* mcCharaMakeHunterController = REInvokePtr<REApi::ManagedObject>(hunterDoll, "get_CharaMakeHunterController", {});
+		if (!mcCharaMakeHunterController) return false;
+
+		bool isArmorVisible = REInvoke<bool>(mcCharaMakeHunterController, "get_IsArmorVisible", {}, InvokeReturnType::BOOL);
+
+        size_t saveIdx = REInvoke<size_t>(controller, "get_SaveIndex", {}, InvokeReturnType::BOOL);
+        return fetchPlayer_EquippedArmours_FromSaveFile(info, pInfo, saveIdx, !isArmorVisible);
+    }
+    
     bool PlayerTracker::fetchPlayer_ArmourTransforms(const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
         if (info.pointers.Transform == nullptr) return false;
+        if (info.optionalPointers.HunterCharacter == nullptr) return false;
+
         // Note: Helm is optional due to toggle
         if (!pInfo.armourInfo.body.has_value()) return false;
         if (!pInfo.armourInfo.arms.has_value()) return false;
@@ -1434,33 +1399,133 @@ namespace kbf {
 		pInfo.Transform_coil = (coilGameObj) ? REInvokePtr<REApi::ManagedObject>(coilGameObj, "get_Transform", {}) : nullptr;
 		pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
         
-        REApi::ManagedObject* slingerGameObj = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
+        pInfo.Slinger_GameObject = REInvokePtr<REApi::ManagedObject>(info.optionalPointers.HunterCharacter, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
 
-        //if (pInfo.armourInfo.helm.has_value()) {
-        //    std::string helmId = ArmourList::getArmourId(pInfo.armourInfo.helm.value(), ArmourPiece::AP_HELM, info.playerData.female);
-        //    pInfo.Transform_helm = findTransform(info.pointers.Transform, helmId);
-        //}
-        //if (pInfo.armourInfo.body.has_value()) {
-        //    std::string bodyId = ArmourList::getArmourId(pInfo.armourInfo.body.value(), ArmourPiece::AP_BODY, info.playerData.female);
-        //    pInfo.Transform_body = findTransform(info.pointers.Transform, bodyId);
-        //}
-        //if (pInfo.armourInfo.arms.has_value()) {
-        //    std::string armsId = ArmourList::getArmourId(pInfo.armourInfo.arms.value(), ArmourPiece::AP_ARMS, info.playerData.female);
-        //    pInfo.Transform_arms = findTransform(info.pointers.Transform, armsId);
-        //}
-        //if (pInfo.armourInfo.coil.has_value()) {
-        //    std::string coilId = ArmourList::getArmourId(pInfo.armourInfo.coil.value(), ArmourPiece::AP_COIL, info.playerData.female);
-        //    pInfo.Transform_coil = findTransform(info.pointers.Transform, coilId);
-        //}
-        //if (pInfo.armourInfo.legs.has_value()) {
-        //    std::string legsId = ArmourList::getArmourId(pInfo.armourInfo.legs.value(), ArmourPiece::AP_LEGS, info.playerData.female);
-        //    pInfo.Transform_legs = findTransform(info.pointers.Transform, legsId);
-        //}
-        //if (pInfo.armourInfo.slinger.has_value()) {
-        //    std::string slingerId = ArmourList::getArmourId(pInfo.armourInfo.slinger.value(), ArmourPiece::AP_SLINGER, info.playerData.female);
-        //    REApi::ManagedObject* slingerTransform = findTransform(info.pointers.Transform, slingerId);
-        //    pInfo.Slinger_GameObject = (slingerTransform) ? REInvokePtr<REApi::ManagedObject>(slingerTransform, "get_GameObject", {}) : nullptr;
-        //}
+        bool foundRequired = (pInfo.Transform_base &&
+            pInfo.Transform_body &&
+            pInfo.Transform_arms &&
+            pInfo.Transform_coil &&
+            pInfo.Transform_legs);
+
+        return foundRequired;
+    }
+
+    bool PlayerTracker::fetchPlayer_ArmourTransforms_FromEventModel(const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
+        if (info.pointers.Transform == nullptr) return false;
+
+        pInfo.Transform_base = info.pointers.Transform;
+
+        // Note: Helm is optional due to toggle
+        if (!pInfo.armourInfo.body.has_value()) return false;
+        if (!pInfo.armourInfo.arms.has_value()) return false;
+        if (!pInfo.armourInfo.coil.has_value()) return false;
+        if (!pInfo.armourInfo.legs.has_value()) return false;
+
+        REApi::ManagedObject* gameObj = REInvokePtr<REApi::ManagedObject>(info.pointers.Transform, "get_GameObject", {});
+        if (!gameObj) return false;
+
+        REApi::ManagedObject* eventModelSetupper = getComponent(gameObj, "app.EventModelSetupper");
+        if (!eventModelSetupper) return false;
+
+        REApi::ManagedObject* equip = REFieldPtr<REApi::ManagedObject>(eventModelSetupper, "_PlEquip");
+        if (!equip) return false;
+
+        REApi::ManagedObject* helmGameObj = REInvokePtr<REApi::ManagedObject>(equip, "get_Item(System.Int32)", { (void*)0 });
+        REApi::ManagedObject* bodyGameObj = REInvokePtr<REApi::ManagedObject>(equip, "get_Item(System.Int32)", { (void*)1 });
+        REApi::ManagedObject* armsGameObj = REInvokePtr<REApi::ManagedObject>(equip, "get_Item(System.Int32)", { (void*)2 });
+        REApi::ManagedObject* coilGameObj = REInvokePtr<REApi::ManagedObject>(equip, "get_Item(System.Int32)", { (void*)3 });
+        REApi::ManagedObject* legsGameObj = REInvokePtr<REApi::ManagedObject>(equip, "get_Item(System.Int32)", { (void*)4 });
+
+        pInfo.Transform_helm = (helmGameObj) ? REInvokePtr<REApi::ManagedObject>(helmGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_body = (bodyGameObj) ? REInvokePtr<REApi::ManagedObject>(bodyGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_arms = (armsGameObj) ? REInvokePtr<REApi::ManagedObject>(armsGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_coil = (coilGameObj) ? REInvokePtr<REApi::ManagedObject>(coilGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
+        
+        pInfo.Slinger_GameObject = REInvokePtr<REApi::ManagedObject>(equip, "get_Item(System.Int32)", { (void*)5 });
+
+        bool foundRequired = (pInfo.Transform_base &&
+            pInfo.Transform_body &&
+            pInfo.Transform_arms &&
+            pInfo.Transform_coil &&
+            pInfo.Transform_legs);
+
+        return foundRequired;
+    }
+
+    bool PlayerTracker::fetchPlayer_ArmourTransforms_FromSaveSelectSceneController(REApi::ManagedObject* sceneController, const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
+        if (info.pointers.Transform == nullptr) return false;
+        if (sceneController == nullptr) return false;
+
+        pInfo.Transform_base = info.pointers.Transform;
+
+        // Note: Helm is optional due to toggle
+        if (!pInfo.armourInfo.body.has_value()) return false;
+        if (!pInfo.armourInfo.arms.has_value()) return false;
+        if (!pInfo.armourInfo.coil.has_value()) return false;
+        if (!pInfo.armourInfo.legs.has_value()) return false;
+
+        REApi::ManagedObject* hunterDoll = REFieldPtr<REApi::ManagedObject>(sceneController, "_HunterController");
+        if (!hunterDoll) return false;
+
+        // TODO: get_HunterProfileHunterController for guild card too
+        REApi::ManagedObject* controller = REInvokePtr<REApi::ManagedObject>(hunterDoll, "get_SaveSelectHunterController", {});
+        if (!controller) return false;
+
+        REApi::ManagedObject* visualController = REFieldPtr<REApi::ManagedObject>(controller, "_VisualController");
+        if (!visualController) return false;
+
+        REApi::ManagedObject* helmGameObj = REInvokePtr<REApi::ManagedObject>(visualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM });
+        REApi::ManagedObject* bodyGameObj = REInvokePtr<REApi::ManagedObject>(visualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY });
+        REApi::ManagedObject* armsGameObj = REInvokePtr<REApi::ManagedObject>(visualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS });
+        REApi::ManagedObject* coilGameObj = REInvokePtr<REApi::ManagedObject>(visualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL });
+        REApi::ManagedObject* legsGameObj = REInvokePtr<REApi::ManagedObject>(visualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS });
+
+        pInfo.Transform_helm = (helmGameObj) ? REInvokePtr<REApi::ManagedObject>(helmGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_body = (bodyGameObj) ? REInvokePtr<REApi::ManagedObject>(bodyGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_arms = (armsGameObj) ? REInvokePtr<REApi::ManagedObject>(armsGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_coil = (coilGameObj) ? REInvokePtr<REApi::ManagedObject>(coilGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
+
+        pInfo.Slinger_GameObject = REInvokePtr<REApi::ManagedObject>(visualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
+
+        bool foundRequired = (pInfo.Transform_base &&
+            pInfo.Transform_body &&
+            pInfo.Transform_arms &&
+            pInfo.Transform_coil &&
+            pInfo.Transform_legs);
+
+        return foundRequired;
+    }
+
+    bool PlayerTracker::fetchPlayer_ArmourTransforms_FromCharaMakeSceneController(REApi::ManagedObject* sceneController, const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
+        if (info.pointers.Transform == nullptr) return false;
+        if (sceneController == nullptr) return false;
+
+        pInfo.Transform_base = info.pointers.Transform;
+
+        // Note: Helm is optional due to toggle
+        if (!pInfo.armourInfo.body.has_value()) return false;
+        if (!pInfo.armourInfo.arms.has_value()) return false;
+        if (!pInfo.armourInfo.coil.has_value()) return false;
+        if (!pInfo.armourInfo.legs.has_value()) return false;
+
+        REApi::ManagedObject* mcCharaMakeController = REFieldPtr<REApi::ManagedObject>(sceneController, "_HunterCharaMake");
+        if (!mcCharaMakeController) return false;
+
+        REApi::ManagedObject* helmGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM });
+        REApi::ManagedObject* bodyGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY });
+        REApi::ManagedObject* armsGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS });
+        REApi::ManagedObject* coilGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL });
+        REApi::ManagedObject* legsGameObj = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS });
+
+        pInfo.Transform_helm = (helmGameObj) ? REInvokePtr<REApi::ManagedObject>(helmGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_body = (bodyGameObj) ? REInvokePtr<REApi::ManagedObject>(bodyGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_arms = (armsGameObj) ? REInvokePtr<REApi::ManagedObject>(armsGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_coil = (coilGameObj) ? REInvokePtr<REApi::ManagedObject>(coilGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
+
+        pInfo.Slinger_GameObject = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
 
         bool foundRequired = (pInfo.Transform_base &&
             pInfo.Transform_body &&
@@ -1558,16 +1623,34 @@ namespace kbf {
         return pInfo.materialManager->isInitialized();
     }
 
+    REApi::ManagedObject* PlayerTracker::getSaveDataObject(int saveIdx) {
+        if (saveIdx >= 0) {
+            return REInvokePtr<REApi::ManagedObject>(
+                saveDataManager.get(),
+                "getUserSaveData(System.Int32)",
+                { (void*)saveIdx });
+        }
+
+        return REInvokePtr<REApi::ManagedObject>(
+            saveDataManager.get(),
+            "getCurrentUserSaveData",
+            {});
+    }
+
+    bool PlayerTracker::isSaveActive(REApi::ManagedObject* save) {
+        if (save == nullptr) return false;
+
+        char* activeByte = re_memory_ptr<char>(save, 0x3AC);
+        return activeByte && *activeByte != 0;
+    }
+
     bool PlayerTracker::getSavePlayerData(int saveIdx, PlayerData& out) {
         if (saveIdx < 0 || saveIdx >= 3) return false; // Invalid save index
 
         out = PlayerData{};
 
-        REApi::ManagedObject* currentSaveData = REInvokePtr<REApi::ManagedObject>(saveDataManager.get(), "getUserSaveData(System.Int32)", {(void*)saveIdx});
-        if (currentSaveData == nullptr) return false;
-
-        char* activeByte = re_memory_ptr<char>(currentSaveData, 0x3AC);
-        if (activeByte == nullptr || *activeByte == 0) return false;
+		REApi::ManagedObject* currentSaveData = getSaveDataObject(saveIdx);
+        if (currentSaveData == nullptr || !isSaveActive(currentSaveData)) return false;
 
         REApi::ManagedObject* cBasicParam = REInvokePtr<REApi::ManagedObject>(currentSaveData, "get_BasicData", {});
         if (cBasicParam == nullptr) return false;
@@ -1595,11 +1678,8 @@ namespace kbf {
     bool PlayerTracker::getActiveSavePlayerData(PlayerData& out) {
         out = PlayerData{};
 
-        REApi::ManagedObject* currentSaveData = REInvokePtr<REApi::ManagedObject>(saveDataManager.get(), "getCurrentUserSaveData", {});
-        if (currentSaveData == nullptr) return false;
-
-        char* activeByte = re_memory_ptr<char>(currentSaveData, 0x3AC);
-        if (activeByte == nullptr || *activeByte == 0) return false;
+        REApi::ManagedObject* currentSaveData = getSaveDataObject();
+        if (currentSaveData == nullptr || !isSaveActive(currentSaveData)) return false;
 
         REApi::ManagedObject* cBasicParam = REInvokePtr<REApi::ManagedObject>(currentSaveData, "get_BasicData", {});
         if (cBasicParam == nullptr) return false;
@@ -1623,6 +1703,188 @@ namespace kbf {
 
         return true;
     }
+
+    std::optional<ArmourSet> PlayerTracker::getArmourForPartFromSave(
+        REApi::ManagedObject* save,
+        REApi::ManagedObject* equip,
+        REApi::ManagedObject* outerSet,
+        REApi::ManagedObject* visible,
+        ArmorParts part,
+        bool overrideInner)
+    {
+        auto outerInfo = getSaveOuterPartInfo(outerSet, part);
+        if (!outerInfo) return std::nullopt;
+
+        const auto& [outerSeries, female] = *outerInfo;
+
+        bool isVisible = overrideInner ? false : REInvoke<bool>(
+            visible,
+            "isVisibleArmor(app.ArmorDef.ARMOR_PARTS)",
+            { (void*)part },
+            InvokeReturnType::BOOL);
+
+        ArmorSetID id{};
+
+        if (isVisible) {
+            id = resolveSaveVisibleArmour(equip, part, outerSeries, female);
+        }
+        else {
+            auto inner = resolveSaveInnerArmour(save, part);
+            if (!inner) return std::nullopt;
+            id = *inner;
+        }
+
+        return ArmourDataManager::get().getArmourSetFromArmourID(id);
+    }
+
+    std::optional<std::pair<uint32_t, bool>> PlayerTracker::getSaveOuterPartInfo(REApi::ManagedObject* outerSet, ArmorParts part) {
+        REApi::ManagedObject* armorParam = REInvokePtr<REApi::ManagedObject>(outerSet, "get_Armor()", {});
+        if (!armorParam) return std::nullopt;
+
+        REApi::ManagedObject* partParam = REInvokePtr<REApi::ManagedObject>(armorParam, "get_Item(System.Int32)", { (void*)static_cast<size_t>(part) });
+        if (!partParam) return std::nullopt;
+
+        uint32_t* series = REFieldPtr<uint32_t>(partParam, "Series");
+        uint32_t* gender = REFieldPtr<uint32_t>(partParam, "Gender");
+        if (!series || !gender) return std::nullopt;
+
+        return { { *series, (*gender == 1) } };
+    }
+
+    ArmorSetID PlayerTracker::resolveSaveVisibleArmour(
+        REApi::ManagedObject* equip,
+        ArmorParts part,
+        uint32_t outerSeries,
+        bool female
+    ) {
+        // If outer exists, use it.
+        if (outerSeries != 0)
+            return ArmourDataManager::getArmourSetIDFromArmourSeries(outerSeries, female);
+
+        // Otherwise read equipped.
+        REApi::ManagedObject* equipIndex = REInvokePtr<REApi::ManagedObject>(equip, "get_EquipIndex", {});
+        REApi::ManagedObject* equipBox   = REInvokePtr<REApi::ManagedObject>(equip, "get_EquipBox", {});
+        if (!equipIndex || !equipBox) return {};
+
+        REApi::ManagedObject* indices = REFieldPtr<REApi::ManagedObject>(equipIndex, "Index");
+        if (!indices) return {};
+
+        size_t equippedIdx = REInvoke<size_t>(
+            indices,
+            "get_Item(System.Int32)",
+            { (void*)(static_cast<size_t>(part) + 1) },
+            InvokeReturnType::DWORD);
+
+        REApi::ManagedObject* equipData =
+            REInvokePtr<REApi::ManagedObject>(
+                equipBox,
+                "get_Item(System.Int32)",
+                { (void*)equippedIdx });
+
+        if (!equipData) return {};
+
+        uint32_t* series = REFieldPtr<uint32_t>(equipData, "FreeVal0");
+        if (!series) return {};
+
+        return ArmourDataManager::getArmourSetIDFromArmourSeries(*series, female);
+    }
+
+    bool PlayerTracker::resolveHunterAndController(
+        PlayerInfo& outInfo,
+        const PlayerData& hunter,
+        REApi::ManagedObject*& controllerOut,
+        REApi::ManagedObject*& hunterTransformCache,
+        REApi::ManagedObject*& sceneControllerCache,
+        const char* transformPrefixXX,
+        const char* transformPrefixXY,
+        const char* sceneControllerName,
+        const char* componentTypeName
+    ) {
+        bool usedCache = false;
+
+        if (hunterTransformCache && sceneControllerCache) {
+            static const REApi::TypeDefinition* def_ViaTransform = REApi::get()->tdb()->find_type("via.Transform");
+
+            if (checkREPtrValidity(hunterTransformCache, def_ViaTransform)) {
+                outInfo.pointers.Transform = hunterTransformCache;
+                controllerOut = sceneControllerCache;
+                usedCache = true;
+            }
+        }
+
+        if (usedCache) return true;
+
+        REApi::ManagedObject* currentScene = getCurrentScene();
+        if (!currentScene) return false;
+
+        static const REApi::ManagedObject* transformType = REApi::get()->typeof("via.Transform");
+
+        REApi::ManagedObject* transformComponents = REInvokePtr<REApi::ManagedObject>(currentScene, "findComponents(System.Type)", { (void*)transformType });
+
+        const int numComponents = REInvoke<int>(transformComponents, "GetLength", { (void*)0 }, InvokeReturnType::DWORD);
+
+        bool hunterFound = false;
+        bool sceneControllerFound = false;
+
+        for (int i = 0; i < numComponents; i++) {
+            REApi::ManagedObject* transform = REInvokePtr<REApi::ManagedObject>(transformComponents, "get_Item", { (void*)i });
+            if (!transform) continue;
+
+            REApi::ManagedObject* gameObject = REInvokePtr<REApi::ManagedObject>(transform, "get_GameObject", {});
+            if (!gameObject) continue;
+
+            std::string name = REInvokeStr(gameObject, "get_Name", {});
+
+            if (name.starts_with(hunter.female ? transformPrefixXX : transformPrefixXY)) {
+                outInfo.pointers.Transform = transform;
+                hunterTransformCache = transform;
+                hunterFound = true;
+            }
+            else if (name == sceneControllerName) {
+                REApi::ManagedObject* controller = getComponent(gameObject, componentTypeName);
+                controllerOut = controller;
+                sceneControllerCache = controller;
+                sceneControllerFound = true;
+            }
+
+            if (hunterFound && sceneControllerFound) break;
+        }
+
+        return hunterFound;
+    }
+
+
+    std::optional<ArmorSetID> PlayerTracker::resolveSaveInnerArmour(
+        REApi::ManagedObject* save,
+        ArmorParts part)
+    {
+        if (part == ArmorParts::HELM)
+            return ArmorSetID{};  // matches previous DEFAULT behaviour
+
+        REApi::ManagedObject* edit =
+            REInvokePtr<REApi::ManagedObject>(save, "get_CharacterEdit_Hunter", {});
+        if (!edit)
+            return std::nullopt;
+
+        const char* fn = nullptr;
+        switch (part) {
+        case ArmorParts::BODY: fn = "get_ChestInner"; break;
+        case ArmorParts::ARMS: fn = "get_ArmsInner";  break;
+        case ArmorParts::COIL: fn = "get_WaistInner"; break;
+        case ArmorParts::LEGS: fn = "get_LegsInner";  break;
+        default: return std::nullopt;
+        }
+
+        size_t innerIdx = REInvoke<size_t>(edit, fn, {}, InvokeReturnType::DWORD);
+
+        return REInvokeStatic<ArmorSetID>(
+            "app.ArmorUtil",
+            "getArmorSetIDFromInnerStyle(app.characteredit.Definition.INNER_STYLE)",
+            { (void*)innerIdx },
+            InvokeReturnType::WORD);
+    }
+
+
 
     REApi::ManagedObject* PlayerTracker::getCurrentScene() const {
         static auto sceneManagerTypeDefinition = REApi::get()->tdb()->find_type("via.SceneManager");

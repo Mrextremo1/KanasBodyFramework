@@ -51,7 +51,7 @@ namespace kbf {
         bool fetchNpc_PersistentInfo(size_t i, const NpcInfo& info, PersistentNpcInfo& pInfo);
 		void fetchNpc_Visibility(NpcInfo& info);
         bool fetchNpc_EquippedArmourSet(const NpcInfo& info, PersistentNpcInfo& pInfo);
-		bool fetchNpc_ArmourTransforms(const NpcInfo& info, PersistentNpcInfo& pInfo);
+		bool fetchNpc_ArmourTransforms(const NpcInfo& info, PersistentNpcInfo& pInfo, bool searchTransforms = false);
 		bool fetchNpc_Bones(const NpcInfo& info, PersistentNpcInfo& pInfo);
         bool fetchNpc_Parts(const NpcInfo& info, PersistentNpcInfo& pInfo);
         bool fetchNpc_Materials(const NpcInfo& info, PersistentNpcInfo& pInfo);
@@ -80,6 +80,7 @@ namespace kbf {
 
         // Main Menu Refs
         RENativeSingleton sceneManager{ "via.SceneManager" };
+        RESingleton saveDataManager{ "app.SaveDataManager" };
         std::optional<MainMenuNpcCache> mainMenuAlmaCache;
         std::optional<MainMenuNpcCache> mainMenuErikCache;
 

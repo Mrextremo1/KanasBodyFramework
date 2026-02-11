@@ -74,6 +74,22 @@ namespace kbf {
 		return sortedSets;
 	}
 
+	ArmorSetID ArmourDataManager::getArmourSetIDFromArmourSeries(uint32_t series, bool female)
+	{
+		uint32_t modId = REInvokeStatic<uint32_t>(
+			"app.ArmorDef",
+			"ModId(app.ArmorDef.SERIES)",
+			{ (void*)series },
+			InvokeReturnType::DWORD);
+
+		uint32_t modSubId = female
+			? REInvokeStatic<uint32_t>("app.ArmorDef", "ModSubFemaleId(app.ArmorDef.SERIES)", { (void*)series }, InvokeReturnType::DWORD)
+			: REInvokeStatic<uint32_t>("app.ArmorDef", "ModSubMaleId(app.ArmorDef.SERIES)", { (void*)series }, InvokeReturnType::DWORD);
+
+		return { modId, modSubId };
+	}
+
+
 	ArmourSet ArmourDataManager::getArmourSetFromArmourID(const ArmorSetID& setId) const {
 		const auto& it = armourSeriesIDMappings.find(setId);
 		if (it != armourSeriesIDMappings.end()) {
@@ -143,6 +159,17 @@ namespace kbf {
 		return nullptr;
 	}
 
+	std::string ArmourDataManager::getPartnerCostumePrefab(size_t partnerId, size_t costumeId) const {
+		auto it = partnerIdToCostumePrefabMap.find(partnerId);
+		if (it != partnerIdToCostumePrefabMap.end()) {
+			auto costumeIt = it->second.find(costumeId);
+			if (costumeIt != it->second.end()) {
+				return costumeIt->second;
+			}
+		}
+		return "";
+	}
+
 	bool ArmourDataManager::hasArmourSetMapping(const ArmourSet& set) const {
 		if (knownArmourSeries.contains(set)) return true;
 		if (knownNpcPrefabs.contains(set)) return true;
@@ -173,11 +200,13 @@ namespace kbf {
 	//}
 
 	void ArmourDataManager::getArmourMappings() {
-		armourSeriesIDMappings = getArmorSeriesData();
-		npcPrefabToArmourSetMap = getNpcArmorData();
-
 		knownArmourSeries.clear();
 		knownNpcPrefabs.clear();
+		npcPrefabToPrimaryTransformNameMap.clear();
+		partnerIdToCostumePrefabMap.clear();
+
+		armourSeriesIDMappings = getArmorSeriesData();
+		npcPrefabToArmourSetMap = getNpcArmorData();
 
 		// generate resident piece mappings, and reverse lookup for quick indexing later
 		for (const auto& [id, data] : armourSeriesIDMappings) {
@@ -233,27 +262,76 @@ namespace kbf {
 		return set;
 	}
 
+	std::optional<ArmorSetID> ArmourDataManager::getArmourSetIDFromArmourSet(const ArmourSet& set) const {
+		auto it = knownArmourSeries.find(set);
+		if (it != knownArmourSeries.end()) {
+			return it->second;
+		}
+		return std::nullopt;
+	}
+
 	std::optional<ArmorSetID> ArmourDataManager::getArmourSetIDFromPrefabName(const std::string& prefabName) {
-		// Expects a path like ch03_XXX_YYY1
+		// Expects a path like ch03_XXX_YYY0_0, where 0 can be any irrelevant digit.
 		// XXX gets parsed as the series id, and YYY as the subId.
 
-		static const std::regex re(R"(^[^_]+_(\d+)_(\d+))");
-
-		std::smatch match;
-		if (!std::regex_search(prefabName, match, re) || match.size() < 3)
+		if (prefabName.size() < 13)
 			return std::nullopt;
 
-		try
-		{
-			ArmorSetID result;
-			result.id = static_cast<uint32_t>(std::stoul(match[1].str()));
-			result.subId = static_cast<uint32_t>(std::stoul(match[2].str()));
-			return result;
-		}
-		catch (...)
-		{
+		const char* s = prefabName.data();
+
+		// prefix "ch"
+		if (s[0] != 'c' || s[1] != 'h')
 			return std::nullopt;
+
+		// two digits
+		if (!std::isdigit(s[2]) || !std::isdigit(s[3]))
+			return std::nullopt;
+
+		// underscore
+		if (s[4] != '_')
+			return std::nullopt;
+
+		// parse series (XXX)
+		int series = 0;
+		{
+			auto [ptr, ec] = std::from_chars(s + 5, s + 8, series);
+			if (ec != std::errc() || ptr != s + 8)
+				return std::nullopt;
 		}
+
+		// underscore
+		if (s[8] != '_')
+			return std::nullopt;
+
+		// parse subId (YYY)
+		int subId = 0;
+		{
+			auto [ptr, ec] = std::from_chars(s + 9, s + 12, subId);
+			if (ec != std::errc() || ptr != s + 12)
+				return std::nullopt;
+		}
+
+		// must have at least one more digit after
+		if (!std::isdigit(s[12]))
+			return std::nullopt;
+
+		return ArmorSetID{ static_cast<uint32_t>(series), static_cast<uint32_t>(subId) };
+	}
+
+	std::string ArmourDataManager::getPrefabNameFromArmourSetID(const ArmorSetID& setId, ArmourPiece piece, bool characterFemale) {
+		// Male:   ch02_XXX_YYYP
+		// Female: ch03_XXX_YYYP
+		// XXX = left zero-padded setId.id, YYY = left zero-padded setId.subId
+		// P = static_cast<uint32_t>(piece)
+		const int gender = characterFemale ? 3 : 2;
+
+		return std::format(
+			"ch0{}_{:03}_{:03}{:01}",
+			gender,
+			setId.id,
+			setId.subId,
+			static_cast<uint32_t>(piece)
+		);
 	}
 
 	ArmorSeriesIDMap ArmourDataManager::getArmorSeriesData() {
@@ -507,6 +585,8 @@ namespace kbf {
 		};
 
 		for (const auto& [idx, partnerStrID] : uniqueVisualIdxToPartnerID) {
+			partnerIdToCostumePrefabMap[idx] = {};
+
 			for (size_t variantIdx = 0; variantIdx < NPC_UNIQUE_PREFAB_VARIANTS_FETCH_CAP; variantIdx++) {
 				REApi::ManagedObject* NpcVisualSetting = REInvokePtr<REApi::ManagedObject>(cNpcCatalogHolder, "getCustomVari(app.NpcDef.UNIQUE_VISUAL_Fixed, System.Int32)", { (void*)idx, (void*)variantIdx });
 				std::string prefabPath = getPrefabFromVisualSetting(NpcVisualSetting);
@@ -515,7 +595,7 @@ namespace kbf {
 				size_t gender = REInvoke<size_t>(NpcVisualSetting, "get_Gender()", {}, InvokeReturnType::DWORD);
 
 				addPrefabToArmorSetMap(map, partnerStrID, partnerStrID, prefabPath, variantIdx, gender == 1, true);
-
+				partnerIdToCostumePrefabMap[idx].emplace(variantIdx, prefabPath);
 			}
 		}
 	}

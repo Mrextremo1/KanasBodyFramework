@@ -26,6 +26,9 @@ namespace kbf {
 		reframework::API::ManagedObject* cHunterCreateInfo;
 		reframework::API::ManagedObject* EventModelSetupper;
 		reframework::API::ManagedObject* VolumeOccludee;
+		reframework::API::ManagedObject* SaveSelectSceneController;
+		reframework::API::ManagedObject* CharaMakeSceneController;
+		reframework::API::ManagedObject* GuildCardSceneController;
 	};
 
 	struct PlayerInfo {

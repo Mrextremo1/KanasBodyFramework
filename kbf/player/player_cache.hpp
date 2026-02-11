@@ -15,6 +15,10 @@ namespace kbf {
 		reframework::API::ManagedObject* HunterCharacter;
 		reframework::API::ManagedObject* cHunterCreateInfo;
 
+		struct OptionalPointers {
+			reframework::API::ManagedObject* saveSelectSceneController;
+		};
+
 		PlayerData playerData;
 
 		bool isEmpty() const { return cacheIsEmpty; }

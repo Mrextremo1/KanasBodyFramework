@@ -58,15 +58,19 @@ namespace kbf {
 		void uninitialize() { initialized = false; }
 		void reinitialize() { uninitialize(); initialize(); }
 		std::vector<ArmourSet> getFilteredArmourSets(const std::string& filter);
+		static ArmorSetID getArmourSetIDFromArmourSeries(uint32_t series, bool female);
 		ArmourSet getArmourSetFromArmourID(const ArmorSetID& setId) const;
 		ArmourSet getArmourSetFromNpcPrefab(const std::string& npcPrefabPath, bool female) const;
 		REApi::ManagedObject* getNpcPrefabPrimaryTransform(const std::string& prefabPath, REApi::ManagedObject* baseTransform);
+		std::string getPartnerCostumePrefab(size_t partnerId, size_t costumeId) const;
 
 		bool hasArmourSetMapping(const ArmourSet& set) const;
 		ArmourPieceFlags getResidentArmourPieces(const ArmourSet& set) const;
 		//bool armourSetHasPiece(const ArmourSet& set, const ArmourPiece& piece) const;
 		std::optional<ArmourSet> getArmourSetFromPrefabName(const std::string& prefabName);
+		std::optional<ArmorSetID> getArmourSetIDFromArmourSet(const ArmourSet& set) const;
 		static std::optional<ArmorSetID> getArmourSetIDFromPrefabName(const std::string& prefabName);
+		static std::string getPrefabNameFromArmourSetID(const ArmorSetID& setId, ArmourPiece piece, bool characterFemale);
 
 	private:
 		ArmourDataManager() = default;
@@ -77,6 +81,7 @@ namespace kbf {
 		ArmorSetToSetIDMap knownArmourSeries;
 		ArmorSetToNpcPrefabMap knownNpcPrefabs;
 		std::unordered_map<std::string, std::string> npcPrefabToPrimaryTransformNameMap;
+		std::unordered_map<size_t, std::unordered_map<size_t, std::string>> partnerIdToCostumePrefabMap;
 
 		void getArmourMappings();
 

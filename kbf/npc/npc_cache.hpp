@@ -10,6 +10,7 @@ namespace kbf {
 		reframework::API::ManagedObject* Transform;
 		reframework::API::ManagedObject* VolumeOccludee;
 		reframework::API::ManagedObject* MeshBoundary;
+		std::string prefabPath = "";
 
 		bool isValid() const {
 			static const reframework::API::TypeDefinition* def_ViaTransform       = REApi::get()->tdb()->find_type("via.Transform");
@@ -20,7 +21,7 @@ namespace kbf {
 			if (!checkREPtrValidity(VolumeOccludee, def_VolumeOcludee))      return false;
 			if (!checkREPtrValidity(MeshBoundary,   def_MeshBoundary))       return false;
 
-			return true;
+			return !prefabPath.empty();
 		}
 
 	};

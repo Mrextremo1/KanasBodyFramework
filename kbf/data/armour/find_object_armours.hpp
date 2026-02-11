@@ -56,6 +56,7 @@ namespace kbf {
 
             std::optional<ArmourSet> set = ArmourDataManager::get().getArmourSetFromPrefabName(normalizedId);
             if (set.has_value()) {
+				//DEBUG_STACK.fpush("Found set {} for piece {}, checking for collision...", set->name, );
                 // Players in multiplayer also have loooaaads of other objects present, but the first seems to always be the right one.
 				size_t index = static_cast<size_t>(piece - 1);
                 if (out[index] != ArmourSet::DEFAULT) {
@@ -66,6 +67,9 @@ namespace kbf {
                 out[static_cast<int>(piece - 1)] = set.value();
                 foundFlags |= pieceFlag;
             }
+            //else {
+            //    DEBUG_STACK.fpush("Could not obtain set for {}", normalizedId);
+            //}
         }
 
         return foundFlags;
