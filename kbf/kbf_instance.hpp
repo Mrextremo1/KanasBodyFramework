@@ -7,6 +7,8 @@
 #include <kbf/profiling/cpu_profiler.hpp>
 #include <kbf/situation/situation_watcher.hpp>
 
+#include <atomic>
+
 namespace kbf {
 
 	class KBFInstance {
@@ -16,6 +18,9 @@ namespace kbf {
 
 		__declspec(noinline)
 		void initialize() {
+			if (isInitializing() || isInitialized()) return;
+			initializing.store(true);
+
 			kbfDataManager.loadData();
 			//kbf::SituationWatcher::initialize();
 
@@ -94,6 +99,9 @@ namespace kbf {
 				.addBlock("Material Apply - Process Overrides - Apply Params - Set Float4")
 				.addBlock("Material Apply - Quick Overrides")
 				.build();
+
+			initializing.store(false);
+			initialized.store(true);
 		}
 
 		__declspec(noinline)
@@ -107,8 +115,26 @@ namespace kbf {
 			CImGui::Spacing();
 			CImGui::Separator();
 
-			if (CImGui::Button("Kana's Body Framework", ImVec2(CImGui::GetContentRegionAvail().x, 0))) {
-				drawWindow = !drawWindow;
+			if (initialized.load()) {
+				if (CImGui::Button("Kana's Body Framework", ImVec2(CImGui::GetContentRegionAvail().x, 0))) {
+					drawWindow = !drawWindow;
+				}
+			}
+			else {
+				drawWindow = false;
+
+				std::string buttonText = initializing.load()
+					? "Kana's Body Framework (Initializing...)"
+					: "Kana's Body Framework (Awaiting Game Load...)";
+
+				std::string tooltipText = initializing.load()
+					? "Kana's Body Framework is currently initializing, please wait..." 
+					: "Kana's Body Framework is waiting until reaching the main menu to initialize...";
+
+				CImGui::BeginDisabled();
+				CImGui::Button(buttonText.c_str(), ImVec2(CImGui::GetContentRegionAvail().x, 0));
+				CImGui::SetItemTooltip(tooltipText.c_str());
+				CImGui::EndDisabled();
 			}
 
 			CImGui::Separator();
@@ -162,6 +188,7 @@ namespace kbf {
 
 		__declspec(noinline)
 		void onPreUpdateMotion() {
+			if (!initialized.load()) return;
 			if (!kbfDataManager.settings().enabled) return;
 
 			CpuProfiler::GlobalTimelineProfiler.get()->resetAccumulatedAll();
@@ -186,6 +213,7 @@ namespace kbf {
 
 		__declspec(noinline)
 		void onPostLateUpdateBehavior() {
+			if (!initialized.load()) return;
 			if (!kbfDataManager.settings().enabled) return;
 
 			BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalTimelineProfiler.get(), "(Post) OnLateUpdateBehavior");
@@ -204,8 +232,14 @@ namespace kbf {
 
 			END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalTimelineProfiler.get(), "(Post) OnLateUpdateBehavior");
 		}
+
+		bool isInitialized() const { return initialized.load(); }
+		bool isInitializing() const { return initializing.load(); }
 			
 	private:
+		std::atomic<bool> initializing = false;
+		std::atomic<bool> initialized = false;
+
 		KBFDataManager kbfDataManager{ KBF_ASSET_PATH("KBF"), KBF_ASSET_PATH("FBSPresets") };
 		PlayerTracker playerTracker{ kbfDataManager };
 		NpcTracker    npcTracker{ kbfDataManager };

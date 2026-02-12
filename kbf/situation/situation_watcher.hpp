@@ -3,13 +3,13 @@
 #include <kbf/situation/known_situation.hpp>
 #include <kbf/situation/custom_situation.hpp>
 
+#include <kbf/util/functional/callback_handler.hpp>
+#include <kbf/util/re_engine/re_singleton.hpp>
 #include <kbf/util/re_engine/check_re_ptr_validity.hpp>
 
 #include <reframework/API.hpp>
 
 #include <unordered_set>
-
-#include <kbf/util/re_engine/re_singleton.hpp>
 
 using REApi = reframework::API;
 
@@ -27,6 +27,9 @@ namespace kbf {
         static bool inSituation(KnownSituation situation) { return get().currentSituations.contains(situation); }
         static bool inCustomSituation(CustomSituation situation) { return get().checkCustomSituation(situation); }
 
+		void onTriggerSituation(KnownSituation situation, std::function<void()> callback) { situationCallbacks[situation].addCallback(callback); }
+		void onTriggerSituation(CustomSituation situation, std::function<void()> callback) { customSituationCallbacks[situation].addCallback(callback); }
+
     private:
         SituationWatcher() { initialize(); }
         void initialize();
@@ -35,6 +38,11 @@ namespace kbf {
         static bool checkMultiplayerSafe();
         bool checkCustomSituation(CustomSituation situation);
         void updateCustomSituations();
+
+		void addKnownSituation(KnownSituation situation); 
+        void removeKnownSituation(KnownSituation situation) { currentSituations.erase(situation); }
+		void addCustomSituation(CustomSituation situation); 
+		void removeCustomSituation(CustomSituation situation) { customSituations.erase(situation); }
 
         // Known Situation Hooks
         static int  situationPreStart(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr);
@@ -53,6 +61,9 @@ namespace kbf {
         bool multiplayerSafe = false;
         std::unordered_set<KnownSituation> currentSituations{};
         std::unordered_set<CustomSituation> customSituations{};
+
+		std::unordered_map<KnownSituation, CallbackHandler>  situationCallbacks{};
+        std::unordered_map<CustomSituation, CallbackHandler> customSituationCallbacks{};
 
         // Pointers to some app.cSimpleStageControllers for various scenes that we need to track
         RESingleton MasterFieldManager{ "app.MasterFieldManager" };

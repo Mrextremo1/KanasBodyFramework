@@ -27,6 +27,8 @@ namespace kbf {
 		static void logStackTrace(EXCEPTION_POINTERS* ep);
 		static void logKbfDebugLog();
 
+		void setInitializationTriggers();
+
 		KBFInstance instance;
 		static bool pluginDisabled;
 	};

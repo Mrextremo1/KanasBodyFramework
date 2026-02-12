@@ -111,7 +111,7 @@ namespace kbf {
             if      (situation == KnownSituation::DUPLICATE_isinQuestPlayingasGuest) situation = KnownSituation::isinQuestPlayingasGuest;
             else if (situation == KnownSituation::DUPLICATE_isinTrainingArea)        situation = KnownSituation::isinTrainingArea;
 
-            instance.currentSituations.insert(situation);
+            instance.addKnownSituation(situation);
 
             std::string situationName = "UNKNOWN";
             if (SITUATION_NAMES.contains(i)) situationName = SITUATION_NAMES.at(i);
@@ -124,10 +124,10 @@ namespace kbf {
         //   This is necessary as these situations don't have a limit on their life-time otherwise.
         //   Lobby search also triggers this, but does not set any flags, so we check that first.
         if (!(instance.currentSituations.size() == 1 && instance.currentSituations.contains(KnownSituation::isAlwaysOn))) {
-		    instance.customSituations.erase(CustomSituation::isInMainMenuScene);
-		    instance.customSituations.erase(CustomSituation::isInSaveSelectGUI);
-            instance.customSituations.erase(CustomSituation::isInTitleMenus);
-            instance.customSituations.insert(CustomSituation::isInGame);
+		    instance.removeCustomSituation(CustomSituation::isInMainMenuScene);
+		    instance.removeCustomSituation(CustomSituation::isInSaveSelectGUI);
+            instance.removeCustomSituation(CustomSituation::isInTitleMenus);
+            instance.addCustomSituation(CustomSituation::isInGame);
         }
 
         DEBUG_STACK.push(std::format("{} Internal Situations Changed:{}", SITUATION_WATCHER_LOG_TAG, instance.currentSituations.empty() ? "EMPTY" : infoSituationStr));
@@ -154,22 +154,22 @@ namespace kbf {
     int SituationWatcher::mainMenuCutsceneOpenPreStart(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr) {
         SituationWatcher& instance = get();
         
-        instance.customSituations.insert(CustomSituation::isInMainMenuScene);
-        instance.customSituations.insert(CustomSituation::isInTitleMenus);
-		instance.customSituations.erase(CustomSituation::isInSaveSelectGUI);
-        instance.customSituations.erase(CustomSituation::isInCutscene);
-        instance.customSituations.erase(CustomSituation::isInGame);
+        instance.addCustomSituation(CustomSituation::isInMainMenuScene);
+        instance.addCustomSituation(CustomSituation::isInTitleMenus);
+		instance.removeCustomSituation(CustomSituation::isInSaveSelectGUI);
+        instance.removeCustomSituation(CustomSituation::isInCutscene);
+        instance.removeCustomSituation(CustomSituation::isInGame);
         return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 	}
 
     int SituationWatcher::mainMenuGUIOpenPreStart(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr) {
         SituationWatcher& instance = get();
         
-        instance.customSituations.insert(CustomSituation::isInMainMenuScene);
-        instance.customSituations.insert(CustomSituation::isInTitleMenus);
-        instance.customSituations.erase(CustomSituation::isInSaveSelectGUI);
-        instance.customSituations.erase(CustomSituation::isInCutscene);
-        instance.customSituations.erase(CustomSituation::isInGame);
+        instance.addCustomSituation(CustomSituation::isInMainMenuScene);
+        instance.addCustomSituation(CustomSituation::isInTitleMenus);
+        instance.removeCustomSituation(CustomSituation::isInSaveSelectGUI);
+        instance.removeCustomSituation(CustomSituation::isInCutscene);
+        instance.removeCustomSituation(CustomSituation::isInGame);
         return REFRAMEWORK_HOOK_CALL_ORIGINAL;
     }
 
@@ -180,7 +180,7 @@ namespace kbf {
         if (cutscenePropsControllerManager == nullptr)
             return DEBUG_STACK.push(std::format("{} Could not fetch CutScenePropsControllerManager singleton in \'cutsceneStartPostStart\'.", SITUATION_WATCHER_LOG_TAG), DebugStack::Color::COL_WARNING);
 
-        instance.customSituations.insert(CustomSituation::isInCutscene);
+        instance.addCustomSituation(CustomSituation::isInCutscene);
         int* cutsceneId = re_memory_ptr<int>(cutscenePropsControllerManager, 0xB0);
 
         instance.currentCutsceneId = cutsceneId ? *cutsceneId : -1;
@@ -192,7 +192,7 @@ namespace kbf {
         
         DEBUG_STACK.push(std::format("{} Finished Cutscene: [{}]", SITUATION_WATCHER_LOG_TAG, instance.currentCutsceneId));
 
-        instance.customSituations.erase(CustomSituation::isInCutscene);
+        instance.removeCustomSituation(CustomSituation::isInCutscene);
         instance.currentCutsceneId = -1;
         return REFRAMEWORK_HOOK_CALL_ORIGINAL;
     }
@@ -246,12 +246,27 @@ namespace kbf {
         const bool charaMakeIsActive  = REInvoke<bool>(stageController_CharaMake,  "get_IsActive", {}, InvokeReturnType::BOOL);
         const bool saveSelectIsActive = REInvoke<bool>(stageController_SaveSelect, "get_IsActive", {}, InvokeReturnType::BOOL);
 
-        if (guildCardIsActive)  customSituations.insert(CustomSituation::isInHunterGuildCard);
-        else                    customSituations.erase(CustomSituation::isInHunterGuildCard);
-        if (charaMakeIsActive)  customSituations.insert(CustomSituation::isInCharacterCreator);
-        else                    customSituations.erase(CustomSituation::isInCharacterCreator);
-        if (saveSelectIsActive) customSituations.insert(CustomSituation::isInSaveSelectGUI);
-        else                    customSituations.erase(CustomSituation::isInSaveSelectGUI);
+        if (guildCardIsActive)  addCustomSituation(CustomSituation::isInHunterGuildCard);
+        else                    removeCustomSituation(CustomSituation::isInHunterGuildCard);
+        if (charaMakeIsActive)  addCustomSituation(CustomSituation::isInCharacterCreator);
+        else                    removeCustomSituation(CustomSituation::isInCharacterCreator);
+        if (saveSelectIsActive) addCustomSituation(CustomSituation::isInSaveSelectGUI);
+        else                    removeCustomSituation(CustomSituation::isInSaveSelectGUI);
+    }
+
+	void SituationWatcher::addKnownSituation(KnownSituation situation) { 
+        // Trigger callbacks on ENTERING situation
+        if (!currentSituations.contains(situation)) {
+			situationCallbacks[situation].triggerAllCallbacks();
+        }
+        currentSituations.insert(situation); 
+    }
+
+	void SituationWatcher::addCustomSituation(CustomSituation situation) { 
+		if (!customSituations.contains(situation)) { 
+            customSituationCallbacks[situation].triggerAllCallbacks(); 
+        }
+        customSituations.insert(situation); 
     }
 
 }

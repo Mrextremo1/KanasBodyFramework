@@ -16,7 +16,59 @@ namespace kbf {
 
     KBF::KBF() {
         SymInitialize(GetCurrentProcess(), nullptr, TRUE);
-        instance.initialize();
+
+        setInitializationTriggers();
+    }
+
+    void KBF::setInitializationTriggers() {
+        // Do this on a separate thread to avoid freezing the game during the main menu load
+        // This is a one time off -> on trigger, so no need to post anything back to the main thread :)
+        auto initFn = [&]() {
+            // Pre check to avoid unnecessary thread creation
+            if (instance.isInitializing() || instance.isInitialized()) return; 
+            std::thread([&]() {
+                instance.initialize();
+            }).detach();
+        };
+
+        // Trigger on all situations that are inside of the loaded game loop.
+        //  Unfortunately we have to define these manually since c++ has no way of checking whether a certain enum value exists
+        //  (i.e. if we wanted to do all but a few 'exceptions')
+
+        SituationWatcher& watcher = SituationWatcher::get();
+
+        watcher.onTriggerSituation(isOnline						     , initFn);
+        watcher.onTriggerSituation(isSoloOnline					     , initFn);
+        watcher.onTriggerSituation(isOfflineorMainMenu				 , initFn);
+        watcher.onTriggerSituation(isinQuestPreparing				 , initFn);
+        watcher.onTriggerSituation(isinQuestReady					 , initFn);
+        watcher.onTriggerSituation(isinQuestPlayingasHost			 , initFn);
+        watcher.onTriggerSituation(isinQuestPlayingasGuest			 , initFn);
+        watcher.onTriggerSituation(isinQuestPlayingfromFieldSurvey	 , initFn);
+        watcher.onTriggerSituation(DUPLICATE_isinQuestPlayingasGuest , initFn);
+        watcher.onTriggerSituation(isinArenaQuestPlayingasHost		 , initFn);
+        watcher.onTriggerSituation(isinQuestPressSelectToEnd		 , initFn);
+        watcher.onTriggerSituation(isinQuestEndAnnounce			     , initFn);
+        watcher.onTriggerSituation(isinQuestResultScreen			 , initFn);
+        watcher.onTriggerSituation(isinQuestLoadingResult			 , initFn);
+        watcher.onTriggerSituation(isinLinkPartyAsGuest			     , initFn);
+        watcher.onTriggerSituation(isinTrainingArea				     , initFn);
+        watcher.onTriggerSituation(isinJunctionArea				     , initFn);
+        watcher.onTriggerSituation(isinSuja						     , initFn);
+        watcher.onTriggerSituation(isinGrandHub					     , initFn);
+        watcher.onTriggerSituation(DUPLICATE_isinTrainingArea		 , initFn);
+        watcher.onTriggerSituation(isinBowlingGame					 , initFn);
+        watcher.onTriggerSituation(isinArmWrestling				     , initFn);
+        watcher.onTriggerSituation(isatTable						 , initFn);
+        //watcher.onTriggerSituation(isAlwaysOn						 , initFn); // outside of loaded game loop
+
+        watcher.onTriggerSituation(isInMainMenuScene    , initFn);
+        watcher.onTriggerSituation(isInSaveSelectGUI    , initFn);
+        watcher.onTriggerSituation(isInCharacterCreator , initFn);
+        watcher.onTriggerSituation(isInHunterGuildCard  , initFn);
+        watcher.onTriggerSituation(isInCutscene         , initFn);
+        watcher.onTriggerSituation(isInGame             , initFn);
+        //watcher.onTriggerSituation(isInTitleMenus       , initFn); // outside of loaded game loop
     }
 
     KBF::~KBF() {
