@@ -29,6 +29,7 @@ namespace kbf {
 		reframework::API::ManagedObject* SaveSelectSceneController;
 		reframework::API::ManagedObject* CharaMakeSceneController;
 		reframework::API::ManagedObject* GuildCardSceneController;
+		reframework::API::ManagedObject* GuildCard_Hunter;
 	};
 
 	struct PlayerInfo {

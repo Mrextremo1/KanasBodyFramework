@@ -58,10 +58,12 @@ namespace kbf {
         bool fetchPlayer_EquippedArmours(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
 		bool fetchPlayer_EquippedArmours_FromSaveFile(const PlayerInfo& info, PersistentPlayerInfo& pInfo, int saveIdx = -1, bool overrideInner = false);
         bool fetchPlayer_EquippedArmours_FromCharaMakeSceneController(REApi::ManagedObject* controller, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+		bool fetchPlayer_EquippedArmours_FromGuildCardHunter(REApi::ManagedObject* hunter, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_ArmourTransforms(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_ArmourTransforms_FromEventModel(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_ArmourTransforms_FromSaveSelectSceneController(REApi::ManagedObject* sceneController, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
-		bool fetchPlayer_ArmourTransforms_FromCharaMakeSceneController(REApi::ManagedObject* sceneController, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+        bool fetchPlayer_ArmourTransforms_FromCharaMakeSceneController(REApi::ManagedObject* sceneController, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
+        bool fetchPlayer_ArmourTransforms_FromGuildCardHunter(REApi::ManagedObject* hunter, const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_WeaponObjects(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_Bones(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
         bool fetchPlayer_Parts(const PlayerInfo& info, PersistentPlayerInfo& pInfo);
@@ -141,7 +143,8 @@ namespace kbf {
         // Guild Card Refs
         RESingleton guiManager{ "app.GUIManager" };
         reframework::API::ManagedObject* guildCardHunterTransformCache = nullptr;
-        reframework::API::ManagedObject* guildCardSceneControllerCache = nullptr;
+        reframework::API::ManagedObject* guildCardHunterGameObjCache   = nullptr;
+		reframework::API::ManagedObject* guildCardSceneControllerCache = nullptr;
         std::optional<size_t> guildCardHashedArmourTransformsCache = std::nullopt;
 
         // Normal Gameplay Refs

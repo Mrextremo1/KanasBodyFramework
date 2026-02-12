@@ -809,6 +809,8 @@ namespace kbf {
         bool fetchedBasicInfo = fetchPlayers_HunterGuildCard_BasicInfo(info);
         if (!fetchedBasicInfo) {
             guildCardHunterTransformCache = nullptr;
+            guildCardSceneControllerCache = nullptr;
+            guildCardHunterGameObjCache   = nullptr;
             guildCardHashedArmourTransformsCache = std::nullopt;
             return;
         }
@@ -823,7 +825,7 @@ namespace kbf {
         //- Equipped Armours -------------------------------
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Guild Card - Equipped Armours");
 
-        bool fetchedArmours = fetchPlayer_EquippedArmours(info, persistentInfo);
+        bool fetchedArmours = fetchPlayer_EquippedArmours_FromGuildCardHunter(info.optionalPointers.GuildCard_Hunter, info, persistentInfo);
         if (!fetchedArmours) {
             return;
         }
@@ -834,7 +836,7 @@ namespace kbf {
         //- Armour Transforms ------------------------------
         BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Guild Card - Armour Transforms");
 
-        bool fetchedTransforms = fetchPlayer_ArmourTransforms(info, persistentInfo);
+        bool fetchedTransforms = fetchPlayer_ArmourTransforms_FromGuildCardHunter(info.optionalPointers.GuildCard_Hunter, info, persistentInfo);
         if (!fetchedTransforms) {
             return;
         }
@@ -907,12 +909,7 @@ namespace kbf {
     }
 
     bool PlayerTracker::fetchPlayers_HunterGuildCard_BasicInfo(PlayerInfo& outInfo) {
-        //bool* isSelfProfile_test = re_memory_ptr<bool>(guiManager, 0x465);
-
-        // UPDATE NOTE: The offset here *might* change here? Still not sure why this function provides incorrect offsets...
-        constexpr uint64_t offset_IsSelfProfile = 0x50;
         bool* isSelfProfile = REFieldPtr<bool>(guiManager.get(), "_HunterProfile_IsSelfProfile");
-        isSelfProfile = reinterpret_cast<bool*>((uintptr_t)isSelfProfile + offset_IsSelfProfile);
 
         if (isSelfProfile == nullptr) return false;
 
@@ -953,11 +950,13 @@ namespace kbf {
         outInfo = PlayerInfo{};
 
         bool usedCache = false;
-        if (guildCardHunterTransformCache != nullptr) {
+        if (guildCardHunterTransformCache && guildCardHunterGameObjCache && guildCardSceneControllerCache) {
             // Check the cache hasn't been invalidated
             static const REApi::TypeDefinition* def_ViaTransform = REApi::get()->tdb()->find_type("via.Transform");
             if (checkREPtrValidity(guildCardHunterTransformCache, def_ViaTransform)) {
                 outInfo.pointers.Transform = guildCardHunterTransformCache;
+                outInfo.optionalPointers.GuildCard_Hunter = guildCardHunterGameObjCache;
+                outInfo.optionalPointers.GuildCardSceneController = guildCardSceneControllerCache;
                 usedCache = true;
             }
         }
@@ -969,6 +968,12 @@ namespace kbf {
             static const REApi::ManagedObject* transformType = REApi::get()->typeof("via.Transform");
             REApi::ManagedObject* transformComponents = REInvokePtr<REApi::ManagedObject>(currentScene, "findComponents(System.Type)", { (void*)transformType });
 
+            bool foundHunterGameObj = false;
+            bool foundHunterTransform = false;
+            bool foundGuildCardSceneController = false;
+
+            constexpr const char* guildCardSceneControllerName = "GuildCardSceneController";
+            constexpr const char* guildCardHunterName = "GuildCard_Hunter";
             constexpr const char* playerTransformNamePrefixXX = "GuildCard_HunterXX";
             constexpr const char* playerTransformNamePrefixXY = "GuildCard_HunterXY";
             const int numComponents = REInvoke<int>(transformComponents, "GetLength", { (void*)0 }, InvokeReturnType::DWORD);
@@ -985,8 +990,21 @@ namespace kbf {
                 if (name.starts_with(hunter.female ? playerTransformNamePrefixXX : playerTransformNamePrefixXY)) {
                     outInfo.pointers.Transform = transform;
                     guildCardHunterTransformCache = transform;
-                    break;
+                    foundHunterTransform = true;
                 }
+                else if (name == guildCardHunterName) {
+                    outInfo.optionalPointers.GuildCard_Hunter = gameObject;
+                    guildCardHunterGameObjCache = gameObject;
+                    foundHunterGameObj = true;
+                }
+                else if (name == guildCardSceneControllerName) {
+                    REApi::ManagedObject* controller = getComponent(gameObject, "app.GuildCardSceneController");
+                    outInfo.optionalPointers.GuildCardSceneController = controller;
+                    guildCardSceneControllerCache = controller;
+                    foundGuildCardSceneController = true;
+                }
+
+                if (foundHunterGameObj && foundHunterTransform && foundGuildCardSceneController) break;
             }
         }
 
@@ -1379,6 +1397,41 @@ namespace kbf {
         size_t saveIdx = REInvoke<size_t>(controller, "get_SaveIndex", {}, InvokeReturnType::BOOL);
         return fetchPlayer_EquippedArmours_FromSaveFile(info, pInfo, saveIdx, !isArmorVisible);
     }
+
+    bool PlayerTracker::fetchPlayer_EquippedArmours_FromGuildCardHunter(REApi::ManagedObject* hunter, const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
+        if (!hunter) return false;
+        if (!info.optionalPointers.GuildCardSceneController) return false;
+
+        size_t phase = REInvoke<size_t>(info.optionalPointers.GuildCardSceneController, "get_Phase", {}, InvokeReturnType::DWORD);
+        if (phase != 5) return false; // 5 = ACTIVE, models should be loaded.
+
+        REApi::ManagedObject* hunterDoll = getComponent(hunter, "app.HunterDoll");
+        if (!hunterDoll) return false;
+
+        REApi::ManagedObject* mcHunterProfileHunterController = REInvokePtr<REApi::ManagedObject>(hunterDoll, "get_HunterProfileHunterController", {});
+        if (!mcHunterProfileHunterController) return false;
+
+        REApi::ManagedObject* mcPreviewHunterVisualController = REFieldPtr<REApi::ManagedObject>(mcHunterProfileHunterController, "_VisualController");
+        if (!mcPreviewHunterVisualController) return false;
+
+        ArmourDataManager& dataMgr = ArmourDataManager::get();
+
+        ArmorSetID helmSetID    = REInvoke<ArmorSetID>(mcPreviewHunterVisualController, "getArmorID(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM }, InvokeReturnType::WORD);
+        ArmorSetID bodySetID    = REInvoke<ArmorSetID>(mcPreviewHunterVisualController, "getArmorID(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY }, InvokeReturnType::WORD);
+        ArmorSetID armsSetID    = REInvoke<ArmorSetID>(mcPreviewHunterVisualController, "getArmorID(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS }, InvokeReturnType::WORD);
+        ArmorSetID coilSetID    = REInvoke<ArmorSetID>(mcPreviewHunterVisualController, "getArmorID(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL }, InvokeReturnType::WORD);
+        ArmorSetID legsSetID    = REInvoke<ArmorSetID>(mcPreviewHunterVisualController, "getArmorID(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS }, InvokeReturnType::WORD);
+        ArmorSetID slingerSetID = REInvoke<ArmorSetID>(mcPreviewHunterVisualController, "getArmorID(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER }, InvokeReturnType::WORD);
+
+        pInfo.armourInfo.helm    = dataMgr.getArmourSetFromArmourID(helmSetID);
+        pInfo.armourInfo.body    = dataMgr.getArmourSetFromArmourID(bodySetID);
+		pInfo.armourInfo.arms    = dataMgr.getArmourSetFromArmourID(armsSetID);
+		pInfo.armourInfo.coil    = dataMgr.getArmourSetFromArmourID(coilSetID);
+		pInfo.armourInfo.legs    = dataMgr.getArmourSetFromArmourID(legsSetID);
+		pInfo.armourInfo.slinger = dataMgr.getArmourSetFromArmourID(slingerSetID);
+
+        return true;
+    }
     
     bool PlayerTracker::fetchPlayer_ArmourTransforms(const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
         if (info.pointers.Transform == nullptr) return false;
@@ -1535,6 +1588,49 @@ namespace kbf {
         pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
 
         pInfo.Slinger_GameObject = REInvokePtr<REApi::ManagedObject>(mcCharaMakeController, "getPartsObject(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
+
+        bool foundRequired = (pInfo.Transform_base &&
+            pInfo.Transform_body &&
+            pInfo.Transform_arms &&
+            pInfo.Transform_coil &&
+            pInfo.Transform_legs);
+
+        return foundRequired;
+    }
+
+    bool PlayerTracker::fetchPlayer_ArmourTransforms_FromGuildCardHunter(REApi::ManagedObject* hunter, const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
+        if (info.pointers.Transform == nullptr) return false;
+        if (!hunter) return false;
+
+        pInfo.Transform_base = info.pointers.Transform;
+
+        if (!pInfo.armourInfo.body.has_value()) return false;
+        if (!pInfo.armourInfo.arms.has_value()) return false;
+        if (!pInfo.armourInfo.coil.has_value()) return false;
+        if (!pInfo.armourInfo.legs.has_value()) return false;
+
+        REApi::ManagedObject* hunterDoll = getComponent(hunter, "app.HunterDoll");
+        if (!hunterDoll) return false;
+
+        REApi::ManagedObject* mcHunterProfileHunterController = REInvokePtr<REApi::ManagedObject>(hunterDoll, "get_HunterProfileHunterController", {});
+        if (!mcHunterProfileHunterController) return false;
+
+        REApi::ManagedObject* mcPreviewHunterVisualController = REFieldPtr<REApi::ManagedObject>(mcHunterProfileHunterController, "_VisualController");
+        if (!mcPreviewHunterVisualController) return false;
+
+        REApi::ManagedObject* helmGameObj = REInvokePtr<REApi::ManagedObject>(mcPreviewHunterVisualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::HELM });
+        REApi::ManagedObject* bodyGameObj = REInvokePtr<REApi::ManagedObject>(mcPreviewHunterVisualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::BODY });
+        REApi::ManagedObject* armsGameObj = REInvokePtr<REApi::ManagedObject>(mcPreviewHunterVisualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::ARMS });
+        REApi::ManagedObject* coilGameObj = REInvokePtr<REApi::ManagedObject>(mcPreviewHunterVisualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::COIL });
+        REApi::ManagedObject* legsGameObj = REInvokePtr<REApi::ManagedObject>(mcPreviewHunterVisualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::LEGS });
+
+        pInfo.Transform_helm = (helmGameObj) ? REInvokePtr<REApi::ManagedObject>(helmGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_body = (bodyGameObj) ? REInvokePtr<REApi::ManagedObject>(bodyGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_arms = (armsGameObj) ? REInvokePtr<REApi::ManagedObject>(armsGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_coil = (coilGameObj) ? REInvokePtr<REApi::ManagedObject>(coilGameObj, "get_Transform", {}) : nullptr;
+        pInfo.Transform_legs = (legsGameObj) ? REInvokePtr<REApi::ManagedObject>(legsGameObj, "get_Transform", {}) : nullptr;
+
+        pInfo.Slinger_GameObject = REInvokePtr<REApi::ManagedObject>(mcPreviewHunterVisualController, "getParts(app.ArmorDef.ARMOR_PARTS)", { (void*)ArmorParts::SLINGER });
 
         bool foundRequired = (pInfo.Transform_base &&
             pInfo.Transform_body &&
