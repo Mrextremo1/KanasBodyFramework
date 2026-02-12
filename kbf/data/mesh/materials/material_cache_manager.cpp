@@ -27,6 +27,10 @@ namespace kbf {
 			}
 
 			if (!targetList || targetList->getHash() == hash) return; // No need to update if the hash is the same
+
+			//DEBUG_STACK.fpush("Armour: {} ({}-{}), Piece: {}, Hash: {}", armour.set.name, armour.characterFemale ? "F" : "M", armour.set.female ? "F" : "M", armourPieceToString(piece), hash);
+			//DEBUG_STACK.fpush("Old Hash: {}, New Hash: {}", targetList ? std::to_string(targetList->getHash()) : "N/A", std::to_string(hash));
+
 			*targetList = HashedMaterialList{ mats, hash };
 			changed = true;
 		}
