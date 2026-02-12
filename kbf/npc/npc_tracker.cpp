@@ -634,7 +634,7 @@ namespace kbf {
         if (!info.prefabPath.empty()) {
 			pInfo.Transform_body = ArmourDataManager::get().getNpcPrefabPrimaryTransform(info.prefabPath, pInfo.Transform_base);
             if (!pInfo.Transform_body) {
-				DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_ERROR, "Failed to find primary armour transform for NPC [{}] with prefab [{}]!", pInfo.index, info.prefabPath);
+				DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_WARNING, "Failed to find primary armour transform for NPC [{}] with prefab [{}]!", pInfo.index, info.prefabPath);
             }
         }
         else {
