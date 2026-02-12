@@ -450,12 +450,33 @@ namespace kbf {
         //    CImGui::SeparatorText("Fixes");
         //    CImGui::Spacing();
         //}
-        if (CImGui::CollapsingHeader("v1.1.2", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (CImGui::CollapsingHeader("v1.2.0", ImGuiTreeNodeFlags_DefaultOpen)) {
+            CImGui::Spacing();
+            CImGui::SeparatorText("Important Notes");
+            WRAP_BULLET("-", "Version 1.2.0 brings a substantial rewrite of KBF's backend.");
+            WRAP_BULLET("-", "This in particular *may* invalidate certain assigned presets you have for NPCs if you use model replacer mods for them.");
+            WRAP_BULLET("-", "Please check your preset groups for NPCs and reassign presets where necessary.");
+            CImGui::SeparatorText("Additions");
+            WRAP_BULLET("-", "Added more generic support for modded armours, for instance where GameObject names are non-standard (e.g. Mangie's Mods)");
+            WRAP_BULLET("-", "Added more generic support for NPC prefabs, for instance where they are replaced with a different name (e.g. Handler replacers)");
+            CImGui::SeparatorText("Changes");
+            WRAP_BULLET("-", "KBF No longer relies on manually defined armour lists.");
+            WRAP_BULLET("-", "All player armour catalogs will now be self-updating on future game updates");
+            WRAP_BULLET("-", "NPC Fetching is now much more relaible, using a bunch of internal game data for automation rather than manually defined lists.");
+            WRAP_BULLET("-", "NPC Catalogs are now semi-self-updating, making it much quicker for me to add support for new NPC prefabs on game updates.");
+            CImGui::SeparatorText("Fixes");
+            WRAP_BULLET("-", "Fixed a lot of cases where armour would fail to be found due to things like non-standard names, or system differences in gameobject layouts.");
+            WRAP_BULLET("-", "Fixed a bug causing material overrides not being applied correctly due to invalid material indices after plugin instantiation.");
+            WRAP_BULLET("-", "Fixed a bug causing players to not be fetched properly in online mode on some systems.");
+            WRAP_BULLET("-", "Fixed a bug causing performance degradation when trying to fetch info for players that had not been set up yet (e.g. in tent).");
+            WRAP_BULLET("-", "Deferred initialization of KBF to the Main Menu scene to ensure global game data is always intiialized before being read.");
+            CImGui::Spacing();
+        }
+        if (CImGui::CollapsingHeader("v1.1.2")) {
             CImGui::Spacing();
             CImGui::SeparatorText("Additions");
             WRAP_BULLET("-", "Added the ability to apply presets to individual support hunters.");
             WRAP_BULLET("-", "Added the ability to combine multiple presets into a single preset.");
-            CImGui::SeparatorText("Changes");
             CImGui::SeparatorText("Fixes");
             WRAP_BULLET("-", "Fixed a crash where a memory access fault would occur while trying to apply bone modifiers during normal gameplay.");
             WRAP_BULLET("-", "Fixed armour caches lot loading for armours with dots in the name (e.g. Analytic E.Y.E.)");
