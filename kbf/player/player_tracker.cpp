@@ -1465,6 +1465,9 @@ namespace kbf {
         if (!pInfo.armourInfo.coil.has_value()) return false;
         if (!pInfo.armourInfo.legs.has_value()) return false;
 
+        size_t* displaySaveIdx = REFieldPtr<size_t>(sceneController, "_DisplaySaveIndex");
+		if (!displaySaveIdx || *displaySaveIdx >= 3) return false;
+
         REApi::ManagedObject* hunterDoll = REFieldPtr<REApi::ManagedObject>(sceneController, "_HunterController");
         if (!hunterDoll) return false;
 

@@ -41,7 +41,7 @@ namespace kbf {
 	{
 		initialized = loadMaterials();
 	}
-
+	
 	bool MaterialManager::applyPreset(const Preset* preset, ArmourPiece piece) {
 		if (preset == nullptr) return false;
 		if (piece == ArmourPiece::AP_SET) return true; // SET does not have materials to modify
