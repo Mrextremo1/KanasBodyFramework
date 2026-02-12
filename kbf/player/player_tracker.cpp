@@ -1184,7 +1184,11 @@ namespace kbf {
     }
 
     void PlayerTracker::fetchPlayer_Visibility(PlayerInfo& info) {
-        info.visible = false;
+		info.visible = false;
+
+		bool isSetUp = REInvoke<bool>(info.optionalPointers.HunterCharacter, "get_IsSetUp", {}, InvokeReturnType::BOOL);
+        if (!isSetUp) return;
+
         info.distanceFromCameraSq = FLT_MAX;
 
         info.weaponDrawn     = REInvoke<bool>(info.optionalPointers.HunterCharacter, "get_IsWeaponOn", {}, InvokeReturnType::BOOL);
@@ -1226,26 +1230,28 @@ namespace kbf {
         bool fetchedTransforms = fetchPlayer_ArmourTransforms(info, pInfo);
         END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Normal Gameplay - Armour Transforms");
         if (!fetchedTransforms) {
-            ArmourSet expectedHelm    = pInfo.armourInfo.helm.value_or({ "UNKNOWN!", false });
-            ArmourSet expectedBody    = pInfo.armourInfo.body.value_or({ "UNKNOWN!", false });
-            ArmourSet expectedArms    = pInfo.armourInfo.arms.value_or({ "UNKNOWN!", false });
-            ArmourSet expectedCoil    = pInfo.armourInfo.coil.value_or({ "UNKNOWN!", false });
-            ArmourSet expectedLegs    = pInfo.armourInfo.legs.value_or({ "UNKNOWN!", false });
-            ArmourSet expectedSlinger = pInfo.armourInfo.slinger.value_or({ "UNKNOWN!", false });
+            DEBUG_STACK.fpush<PLAYER_TRACKER_LOG_TAG>("Failed to fetch armour transforms for Player: {} [{}].", info.playerData.name, i);
 
-            DEBUG_STACK.push(std::format("{} Failed to fetch armour transforms for Player: {} [{}]."
-                "\nExpecting the following transforms:\n   Head:    {}\n   Body:    {}\n   Arms:    {}\n   Waist:   {}\n   Legs:    {}\n   Slinger: {}"
-                "\nDumped the following transforms:"
-                "\n{}",
-                PLAYER_TRACKER_LOG_TAG, info.playerData.name, i,
-                expectedHelm.name,
-                expectedBody.name,
-                expectedArms.name,
-                expectedCoil.name,
-                expectedLegs.name,
-                expectedSlinger.name,
-                dumpTransformTreeString(info.pointers.Transform)
-            ), DebugStack::Color::COL_DEBUG);
+            //ArmourSet expectedHelm    = pInfo.armourInfo.helm.value_or({ "UNKNOWN!", false });
+            //ArmourSet expectedBody    = pInfo.armourInfo.body.value_or({ "UNKNOWN!", false });
+            //ArmourSet expectedArms    = pInfo.armourInfo.arms.value_or({ "UNKNOWN!", false });
+            //ArmourSet expectedCoil    = pInfo.armourInfo.coil.value_or({ "UNKNOWN!", false });
+            //ArmourSet expectedLegs    = pInfo.armourInfo.legs.value_or({ "UNKNOWN!", false });
+            //ArmourSet expectedSlinger = pInfo.armourInfo.slinger.value_or({ "UNKNOWN!", false });
+
+            //DEBUG_STACK.push(std::format("{} Failed to fetch armour transforms for Player: {} [{}]."
+            //    "\nExpecting the following transforms:\n   Head:    {}\n   Body:    {}\n   Arms:    {}\n   Waist:   {}\n   Legs:    {}\n   Slinger: {}"
+            //    "\nDumped the following transforms:"
+            //    "\n{}",
+            //    PLAYER_TRACKER_LOG_TAG, info.playerData.name, i,
+            //    expectedHelm.name,
+            //    expectedBody.name,
+            //    expectedArms.name,
+            //    expectedCoil.name,
+            //    expectedLegs.name,
+            //    expectedSlinger.name,
+            //    dumpTransformTreeString(info.pointers.Transform)
+            //), DebugStack::Color::COL_DEBUG);
             return false;
         }
 
