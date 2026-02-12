@@ -129,7 +129,7 @@ namespace kbf {
 
 				std::string tooltipText = initializing.load()
 					? "Kana's Body Framework is currently initializing, please wait..." 
-					: "Kana's Body Framework is waiting until reaching the main menu to initialize...";
+					: "Kana's Body Framework is waiting for a change in game state to initialize...";
 
 				CImGui::BeginDisabled();
 				CImGui::Button(buttonText.c_str(), ImVec2(CImGui::GetContentRegionAvail().x, 0));
