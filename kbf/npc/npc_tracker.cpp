@@ -35,7 +35,45 @@ namespace kbf {
         // Fetch everything again after leaving these areas as lists will be cleared.
 		SituationWatcher::get().onLeaveSituation(CustomSituation::isInHunterGuildCard, [this]() { needsAllNpcFetch = true; });
 		SituationWatcher::get().onLeaveSituation(CustomSituation::isInCharacterCreator, [this]() { needsAllNpcFetch = true; });
+
+        setupLists();
     }
+
+    void NpcTracker::setupLists() {
+        bool gotNumNPCslots = getNpcListSize(npcListSize);
+        if (!gotNumNPCslots) {
+            DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_ERROR, "Failed to get NPC list from NPC Manager! NPC modifications will not function.");
+        }
+        else {
+            DEBUG_STACK.fpush<LOG_TAG>(DebugStack::Color::COL_SUCCESS, "Successfully fetched NPC list size: {}", npcListSize);
+            
+            // empty initialize arrays
+            npcsToFetch       .resize(npcListSize, false);
+			tryFetchCountTable.resize(npcListSize, 0);
+			npcInfos          .resize(npcListSize, std::nullopt);
+			persistentNpcInfos.resize(npcListSize, std::nullopt);
+			npcInfoCaches     .resize(npcListSize, std::nullopt);
+        }
+    }
+
+    bool NpcTracker::getNpcListSize(size_t& out) {
+        REApi::ManagedObject* list = REFieldPtr<REApi::ManagedObject>(npcManager.get(), "_NpcList");
+        if (!list) return false;
+
+        REApi::ManagedObject* enumerator = REInvokePtr<REApi::ManagedObject>(list, "GetEnumerator()", {});
+		if (!enumerator) return false;
+
+		constexpr size_t fetchCap = 2000; // Arbitrary cap to prevent infinite loops in case of something going wrong with the enumerator
+        bool canMove = REInvoke<bool>(enumerator, "MoveNext()", {}, InvokeReturnType::BOOL);
+        size_t cnt = 0;
+        while (canMove && cnt < fetchCap) {
+            cnt++;
+			canMove = REInvoke<bool>(enumerator, "MoveNext()", {}, InvokeReturnType::BOOL);
+        }
+
+        out = cnt;
+        return cnt > 0;
+	}
 
     const std::vector<size_t> NpcTracker::getNpcList() const {
 		return std::vector<size_t>(npcSlotTable.begin(), npcSlotTable.end());
@@ -83,34 +121,34 @@ namespace kbf {
         for (size_t i = 0; i < npcLimit; ++i) {
             size_t idx = npcs[i];
 
-            if (npcInfos[idx] == nullptr) continue;
+            if (!npcInfos[idx].has_value()) continue;
             if (npcApplyDelays[idx] && npcApplyDelays[idx].has_value()) continue;
 
-			const NpcInfo* infoPtr = npcInfos[idx].get();
-            if (infoPtr == nullptr) {
+            if (!npcInfos[idx].has_value()) {
                 npcApplyDelays.erase(idx);
                 continue;
             }
 
-            const NpcInfo& info = *infoPtr;
+            const NpcInfo& info = npcInfos[idx].value();
             if (!info.visible) continue;
 
-            PersistentNpcInfo* pInfo = persistentNpcInfos[idx].get();
-			if (pInfo == nullptr) continue;
-            if (!pInfo->areSetPointersValid()) {
-                persistentNpcInfos[idx] = nullptr;
+			if (!persistentNpcInfos[idx].has_value()) continue;
+
+			PersistentNpcInfo& pInfo = persistentNpcInfos[idx].value();
+            if (!pInfo.areSetPointersValid()) {
+                persistentNpcInfos[idx] = std::nullopt;
                 continue;
             }
 
-            if (pInfo->boneManager && pInfo->partManager) {
+            if (pInfo.boneManager && pInfo.partManager) {
                 // Always apply base presets when they are present, but refrain from re-applying the same base preset multiple times.
                 std::unordered_set<std::string> presetBasesApplied{};
 
                 for (ArmourPiece piece = ArmourPiece::AP_MIN_EXCLUDING_SET; piece <= ArmourPiece::AP_MAX_EXCLUDING_SLINGER; piece = static_cast<ArmourPiece>(static_cast<int>(piece) + 1)) {
-                    std::optional<ArmourSet>& armourPiece = pInfo->armourInfo.getPiece(piece);
+                    std::optional<ArmourSet>& armourPiece = pInfo.armourInfo.getPiece(piece);
 
                     if (armourPiece.has_value()) {
-                        const Preset* preset = dataManager.getActivePreset(pInfo->npcID, info.female, armourPiece.value(), piece);
+                        const Preset* preset = dataManager.getActivePreset(pInfo.npcID, info.female, armourPiece.value(), piece);
 
                         // TODO: Part enables are persistent until transform change, so these *could* be set along with pInfo fetch.
                         bool usePreview = hasPreview && (applyPreviewUnconditional || previewedPreset->armour == armourPiece.value());
@@ -118,16 +156,16 @@ namespace kbf {
 
                         const Preset* activePreset = usePreview ? previewedPreset : preset;
 
-                        BoneManager::BoneApplyStatusFlag applyFlag = pInfo->boneManager->applyPreset(activePreset, piece);
+                        BoneManager::BoneApplyStatusFlag applyFlag = pInfo.boneManager->applyPreset(activePreset, piece);
                         bool invalidBones = applyFlag == BoneManager::BoneApplyStatusFlag::BONE_APPLY_ERROR_INVALID_BONE;
                         if (invalidBones) { clearNpcSlot(idx); npcsToFetch[idx] = true; break; }
 
-                        pInfo->partManager->applyPreset(activePreset, piece);
-						pInfo->materialManager->applyPreset(activePreset, piece);
+                        pInfo.partManager->applyPreset(activePreset, piece);
+						pInfo.materialManager->applyPreset(activePreset, piece);
 
                         if (!invalidBones && activePreset->set.hasModifiers() && !presetBasesApplied.contains(activePreset->uuid)) {
                             presetBasesApplied.insert(activePreset->uuid);
-                            BoneManager::BoneApplyStatusFlag baseApplyFlag = pInfo->boneManager->applyPreset(activePreset, AP_SET);
+                            BoneManager::BoneApplyStatusFlag baseApplyFlag = pInfo.boneManager->applyPreset(activePreset, AP_SET);
                             bool invalidBaseBones = baseApplyFlag == BoneManager::BoneApplyStatusFlag::BONE_APPLY_ERROR_INVALID_BONE;
                             if (invalidBaseBones) { clearNpcSlot(idx); npcsToFetch[idx] = true; break; }
                         }
@@ -143,7 +181,7 @@ namespace kbf {
         for (auto& p : npcInfos)           p.reset();
         for (auto& p : persistentNpcInfos) p.reset();
 
-        npcsToFetch.fill(false);
+		std::fill(npcsToFetch.begin(), npcsToFetch.end(), false);
 
         mainMenuAlmaCache = std::nullopt;
         mainMenuErikCache = std::nullopt;
@@ -199,34 +237,34 @@ namespace kbf {
         int erikIdx = erikInfo.index;
 
         // ---- Alma ----------------------------------------------------------------------------------
-        if (persistentNpcInfos[almaIdx] == nullptr) {
+        if (!persistentNpcInfos[almaIdx].has_value()) {
             PersistentNpcInfo almaPInfo{};
             almaPInfo.index = almaIdx;
 
             bool fetchedPInfo = fetchNpcs_MainMenu_PersistentInfo(almaInfo, almaPInfo);
             if (fetchedPInfo) {
                 npcApplyDelays[almaIdx] = std::chrono::high_resolution_clock::now();
-                persistentNpcInfos[almaIdx] = std::make_unique<PersistentNpcInfo>(std::move(almaPInfo));
+                persistentNpcInfos[almaIdx] = std::move(almaPInfo);
             }
         }
 
         if (!npcSlotTable.contains(almaIdx)) npcSlotTable.insert(almaIdx);
-        npcInfos[almaIdx] = std::make_unique<NpcInfo>(std::move(almaInfo));
+        npcInfos[almaIdx] = std::move(almaInfo);
 
-        // ---- Erik ----------------------------------------------------------------------------------
-        if (persistentNpcInfos[erikIdx] == nullptr) {
+        // ---- Erik --------------------------------------------s--------------------------------------
+        if (!persistentNpcInfos[erikIdx].has_value()) {
             PersistentNpcInfo erikPInfo{};
             erikPInfo.index = erikIdx;
 
             bool fetchedPInfo = fetchNpcs_MainMenu_PersistentInfo(erikInfo, erikPInfo);
             if (fetchedPInfo) {
                 npcApplyDelays[erikIdx] = std::chrono::high_resolution_clock::now();
-                persistentNpcInfos[erikIdx] = std::make_unique<PersistentNpcInfo>(std::move(erikPInfo));
+                persistentNpcInfos[erikIdx] = std::move(erikPInfo);
             }
         }
 
         if (!npcSlotTable.contains(erikIdx)) npcSlotTable.insert(erikIdx);
-        npcInfos[erikIdx] = std::make_unique<NpcInfo>(std::move(erikInfo));
+        npcInfos[erikIdx] = std::move(erikInfo);
     }
 
     bool NpcTracker::fetchNpcs_MainMenu_BasicInfo(NpcInfo& almaInfo, NpcInfo& erikInfo) {
@@ -391,7 +429,7 @@ namespace kbf {
         std::unique_lock lock(fetchListMutex);
 
         const bool useCache = !needsAllNpcFetch;
-        for (size_t i = 0; i < NPC_LIST_SIZE; i++) {
+        for (size_t i = 0; i < npcListSize; i++) {
             if (needsAllNpcFetch || npcSlotTable.contains(i) || npcsToFetch[i]) {
                 fetchNpcs_NormalGameplay_SingleNpc(i, useCache);
             }
@@ -460,7 +498,7 @@ namespace kbf {
         END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "NPC Fetch - Normal Gameplay - Visibility");
         // ----------------------------------------------------------------------------------------------------------
 
-        if (info.visible && persistentNpcInfos[i] == nullptr && tryFetchCountTable[i] < TRY_FETCH_LIMIT) {
+        if (info.visible && !persistentNpcInfos[i].has_value() && tryFetchCountTable[i] < TRY_FETCH_LIMIT) {
             BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "NPC Fetch - Normal Gameplay - Persistent Info");
 
             PersistentNpcInfo persistentInfo{};
@@ -469,7 +507,7 @@ namespace kbf {
             bool fetchedPInfo = fetchNpc_PersistentInfo(i, info, persistentInfo);
             if (fetchedPInfo) {
                 npcApplyDelays[i] = std::chrono::high_resolution_clock::now();
-                persistentNpcInfos[i] = std::make_unique<PersistentNpcInfo>(std::move(persistentInfo));
+                persistentNpcInfos[i] = std::move(persistentInfo);
                 tryFetchCountTable[i] = 0; // Reset try count on success
             }
 
@@ -477,7 +515,7 @@ namespace kbf {
         }
 
         if (!npcSlotTable.contains(i)) npcSlotTable.insert(i);
-        npcInfos[i] = std::make_unique<NpcInfo>(std::move(info));
+        npcInfos[i] = std::move(info);
         npcsToFetch[i] = false; // TODO: Probs need to move this to PInfo loop
     }
 
@@ -708,16 +746,16 @@ namespace kbf {
         if (info.pointers.Transform == nullptr) return false;
         if (!pInfo.armourInfo.body.has_value()) return false;
 
-        pInfo.boneManager = std::make_unique<BoneManager>(
-            dataManager, 
-            pInfo.armourInfo, 
+        pInfo.boneManager = BoneManager{
+            dataManager,
+            pInfo.armourInfo,
             pInfo.Transform_base,
             pInfo.Transform_helm,
             pInfo.Transform_body,
             pInfo.Transform_arms,
             pInfo.Transform_coil,
             pInfo.Transform_legs,
-            info.female);
+            info.female };
 
         return pInfo.boneManager->isInitialized();
     }
@@ -727,16 +765,16 @@ namespace kbf {
         if (!pInfo.Transform_body) return false;
         // Legs are optional for NPCs
 
-        pInfo.partManager = std::make_unique<PartManager>(
-            dataManager, 
-            pInfo.armourInfo, 
+        pInfo.partManager = PartManager{
+            dataManager,
+            pInfo.armourInfo,
             pInfo.Transform_base,
             pInfo.Transform_helm,
             pInfo.Transform_body,
             pInfo.Transform_arms,
             pInfo.Transform_coil,
             pInfo.Transform_legs,
-            info.female);
+            info.female };
 
 		return pInfo.partManager->isInitialized();
     }
@@ -746,7 +784,7 @@ namespace kbf {
         if (!pInfo.Transform_body) return false;
         // Legs are optional for NPCs
 
-        pInfo.materialManager = std::make_unique<MaterialManager>(
+        pInfo.materialManager = MaterialManager{
             dataManager,
             pInfo.armourInfo,
             pInfo.Transform_base,
@@ -755,7 +793,7 @@ namespace kbf {
             pInfo.Transform_arms,
             pInfo.Transform_coil,
             pInfo.Transform_legs,
-            info.female);
+            info.female };
 
         return pInfo.materialManager->isInitialized();
     }
@@ -777,8 +815,8 @@ namespace kbf {
             npcSlotTable.erase(index);
             tryFetchCountTable[index] = 0;
             npcInfoCaches[index]      = std::nullopt;
-            npcInfos[index]           = nullptr;
-            persistentNpcInfos[index] = nullptr;
+            npcInfos[index]           = std::nullopt;
+            persistentNpcInfos[index] = std::nullopt;
         }
 	}
 
@@ -859,7 +897,7 @@ namespace kbf {
         if (idxPtr == nullptr) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
         int idx = *idxPtr;
 
-        if (idx < 0 || idx >= NPC_LIST_SIZE) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
+        if (idx < 0 || idx >= npcListSize) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 
         {
             std::unique_lock lock(fetchListMutex);

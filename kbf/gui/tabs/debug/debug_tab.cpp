@@ -464,7 +464,7 @@ namespace kbf {
 
         for (const PlayerData& player : playerList) {
 			const PlayerInfo& info = playerTracker.getPlayerInfo(player);
-			const PersistentPlayerInfo* pInfo = playerTracker.getPersistentPlayerInfo(player);
+			const std::optional<PersistentPlayerInfo>& pInfo = playerTracker.getPersistentPlayerInfo(player);
             drawPlayerListRow(info, pInfo);
         }
 
@@ -474,7 +474,7 @@ namespace kbf {
         CImGui::EndChild();
 	}
 
-    void DebugTab::drawPlayerListRow(PlayerInfo info, const PersistentPlayerInfo* pInfo) {
+    void DebugTab::drawPlayerListRow(PlayerInfo info, const std::optional<PersistentPlayerInfo>& pInfo) {
         CImGui::TableNextRow();
         CImGui::TableNextColumn();
 
@@ -500,20 +500,20 @@ namespace kbf {
 			return armour.has_value() ? std::format("{} ({})", armour.value().name, armour.value().female ? "F" : "M") : std::string{ "UNKNOWN" };
 		};
 
-        if (pInfo != nullptr) {
-			helmArmourStr    = getArmourStr(pInfo->armourInfo.helm);
-			bodyArmourStr    = getArmourStr(pInfo->armourInfo.body);
-			armsArmourStr    = getArmourStr(pInfo->armourInfo.arms);
-			coilArmourStr    = getArmourStr(pInfo->armourInfo.coil);
-			legsArmourStr    = getArmourStr(pInfo->armourInfo.legs);
-            slingerArmourStr = getArmourStr(pInfo->armourInfo.slinger);
+        if (pInfo.has_value()) {
+			helmArmourStr    = getArmourStr(pInfo.value().armourInfo.helm);
+			bodyArmourStr    = getArmourStr(pInfo.value().armourInfo.body);
+			armsArmourStr    = getArmourStr(pInfo.value().armourInfo.arms);
+			coilArmourStr    = getArmourStr(pInfo.value().armourInfo.coil);
+			legsArmourStr    = getArmourStr(pInfo.value().armourInfo.legs);
+            slingerArmourStr = getArmourStr(pInfo.value().armourInfo.slinger);
 
-			wpParentStr           = ptrToHexString(pInfo->Wp_Parent_GameObject);
-			wpSubParentStr        = ptrToHexString(pInfo->WpSub_Parent_GameObject);
-			wpReserveParentStr    = ptrToHexString(pInfo->Wp_ReserveParent_GameObject);
-			wpSubReserveParentStr = ptrToHexString(pInfo->WpSub_ReserveParent_GameObject);
-            wpKinsectStr          = ptrToHexString(pInfo->Wp_Insect);
-            wpReserveKinsectStr   = ptrToHexString(pInfo->Wp_ReserveInsect);
+			wpParentStr           = ptrToHexString(pInfo.value().Wp_Parent_GameObject);
+			wpSubParentStr        = ptrToHexString(pInfo.value().WpSub_Parent_GameObject);
+			wpReserveParentStr    = ptrToHexString(pInfo.value().Wp_ReserveParent_GameObject);
+			wpSubReserveParentStr = ptrToHexString(pInfo.value().WpSub_ReserveParent_GameObject);
+            wpKinsectStr          = ptrToHexString(pInfo.value().Wp_Insect);
+            wpReserveKinsectStr   = ptrToHexString(pInfo.value().Wp_ReserveInsect);
         }
         
         CImGui::SetItemTooltip(std::format(
@@ -580,8 +580,8 @@ namespace kbf {
 
         float endPos = CImGui::GetCursorScreenPos().x + CImGui::GetContentRegionAvail().x;
         bool nonNull = !info.pointers.hasNull();
-		bool hasPersistentInfo = pInfo != nullptr;
-        bool foundArmour = pInfo != nullptr && pInfo->armourInfo.isFullyPopulated();
+		bool hasPersistentInfo = pInfo.has_value();
+        bool foundArmour = pInfo.has_value() && pInfo.value().armourInfo.isFullyPopulated();
 
         // Validity String
         std::string validityStr = "OK";
@@ -643,7 +643,7 @@ namespace kbf {
         CImGui::EndChild();
     }
 
-    void DebugTab::drawNpcListRow(NpcInfo info, const PersistentNpcInfo* pInfo) {
+    void DebugTab::drawNpcListRow(NpcInfo info, const std::optional<PersistentNpcInfo>& pInfo) {
         CImGui::TableNextRow();
         CImGui::TableNextColumn();
 
@@ -662,13 +662,13 @@ namespace kbf {
             return armour.has_value() ? std::format("{} ({})", armour.value().name, armour.value().female ? "F" : "M") : std::string{ "UNKNOWN" };
             };
 
-        if (pInfo != nullptr) {
-            helmArmourStr    = getArmourStr(pInfo->armourInfo.helm);
-            bodyArmourStr    = getArmourStr(pInfo->armourInfo.body);
-            armsArmourStr    = getArmourStr(pInfo->armourInfo.arms);
-            coilArmourStr    = getArmourStr(pInfo->armourInfo.coil);
-            legsArmourStr    = getArmourStr(pInfo->armourInfo.legs);
-			slingerArmourStr = getArmourStr(pInfo->armourInfo.slinger);
+        if (pInfo.has_value()) {
+            helmArmourStr    = getArmourStr(pInfo.value().armourInfo.helm);
+            bodyArmourStr    = getArmourStr(pInfo.value().armourInfo.body);
+            armsArmourStr    = getArmourStr(pInfo.value().armourInfo.arms);
+            coilArmourStr    = getArmourStr(pInfo.value().armourInfo.coil);
+            legsArmourStr    = getArmourStr(pInfo.value().armourInfo.legs);
+			slingerArmourStr = getArmourStr(pInfo.value().armourInfo.slinger);
         }
 
         CImGui::Selectable(("##Selectable_" + std::to_string(info.index)).c_str(), false, 0, ImVec2(0.0f, selectableHeight));
@@ -715,7 +715,7 @@ namespace kbf {
         // Npc name
         std::string npcName = NpcDataManager::get().getNpcNameFromID(info.index);
         if (npcName.empty()) npcName = "Unnamed NPC";
-        std::string npcNameStr = std::format("[{}] {}{}", info.index, npcName, pInfo == nullptr ? " (Not loaded)" : "");
+        std::string npcNameStr = std::format("[{}] {}{}", info.index, npcName, pInfo.has_value() ? "" : " (Not loaded)");
 
         constexpr float npcNameSpacingAfter = 5.0f;
         ImVec2 npcNameSize = CImGui::CalcTextSize(npcNameStr.c_str());
@@ -730,8 +730,8 @@ namespace kbf {
 
         float endPos = CImGui::GetCursorScreenPos().x + CImGui::GetContentRegionAvail().x;
         bool nonNull = !info.pointers.hasNull();
-        bool hasPersistentInfo = pInfo != nullptr;
-        bool foundArmour = pInfo != nullptr && pInfo->armourInfo.body.has_value();
+        bool hasPersistentInfo = pInfo.has_value();
+        bool foundArmour = pInfo.has_value() && pInfo.value().armourInfo.body.has_value();
 
         // Validity String
         std::string validityStr = "OK";

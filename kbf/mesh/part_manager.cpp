@@ -23,7 +23,7 @@ namespace kbf {
 		REApi::ManagedObject* coilTransform,
 		REApi::ManagedObject* legsTransform,
 		bool female
-	) : dataManager{ dataManager },
+	) : dataManager{ &dataManager },
 		armourInfo{ armour },
 		baseTransform{ baseTransform },
 		helmTransform{ helmTransform },
@@ -86,32 +86,32 @@ namespace kbf {
 		if (hasBaseMesh) {
 			getParts(baseMesh, baseParts);
 			ArmourSetWithCharacterSex armourWithSex{ ArmourSet::DEFAULT, female};
-			dataManager.partCacheManager().cache(armourWithSex, baseParts, ArmourPiece::AP_SET);
+			dataManager->partCacheManager().cache(armourWithSex, baseParts, ArmourPiece::AP_SET);
 		}
 		if (hasHelmMesh) {
 			getParts(helmMesh, helmParts);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.helm.value(), female };
-			dataManager.partCacheManager().cache(armourWithSex, helmParts, ArmourPiece::AP_HELM);
+			dataManager->partCacheManager().cache(armourWithSex, helmParts, ArmourPiece::AP_HELM);
 		}
 		if (hasBodyMesh) {
 			getParts(bodyMesh, bodyParts);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.body.value(), female };
-			dataManager.partCacheManager().cache(armourWithSex, bodyParts, ArmourPiece::AP_BODY);
+			dataManager->partCacheManager().cache(armourWithSex, bodyParts, ArmourPiece::AP_BODY);
 		}
 		if (hasArmsMesh) {
 			getParts(armsMesh, armsParts);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.arms.value(), female };
-			dataManager.partCacheManager().cache(armourWithSex, armsParts, ArmourPiece::AP_ARMS);
+			dataManager->partCacheManager().cache(armourWithSex, armsParts, ArmourPiece::AP_ARMS);
 		}
 		if (hasCoilMesh) {
 			getParts(coilMesh, coilParts);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.coil.value(), female };
-			dataManager.partCacheManager().cache(armourWithSex, coilParts, ArmourPiece::AP_COIL);
+			dataManager->partCacheManager().cache(armourWithSex, coilParts, ArmourPiece::AP_COIL);
 		}
 		if (hasLegsMesh) {
 			getParts(legsMesh, legsParts);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.legs.value(), female };
-			dataManager.partCacheManager().cache(armourWithSex, legsParts, ArmourPiece::AP_LEGS);
+			dataManager->partCacheManager().cache(armourWithSex, legsParts, ArmourPiece::AP_LEGS);
 		}
 
 		return bodyParts.size() > 0;

@@ -44,7 +44,7 @@ namespace kbf {
 		) const;
 		QuickOverrideMatMatchLUT getQuickOverrideMatches(const MeshMaterial& mat) const;
 
-		KBFDataManager& dataManager;
+		KBFDataManager* dataManager;
 		ArmourInfo armourInfo;
 		bool female;
 		bool initialized = false;

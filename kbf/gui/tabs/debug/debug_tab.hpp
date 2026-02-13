@@ -41,9 +41,9 @@ namespace kbf {
 		void drawSituationTab_Row(std::string name, bool active, bool colorBg);
 		void drawArmourList();
 		void drawPlayerList();
-		void drawPlayerListRow(PlayerInfo info, const PersistentPlayerInfo* pInfo);
+		void drawPlayerListRow(PlayerInfo info, const std::optional<PersistentPlayerInfo>& pInfo);
 		void drawNpcList();
-		void drawNpcListRow(NpcInfo info, const PersistentNpcInfo* pInfo);
+		void drawNpcListRow(NpcInfo info, const std::optional<PersistentNpcInfo>& pInfo);
 		void drawCacheTab();
 		void drawBoneCacheTab();
 		void drawBoneCacheTab_BoneList(const std::string& label, const std::vector<std::string>& bones);

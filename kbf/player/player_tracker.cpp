@@ -50,12 +50,49 @@ namespace kbf {
         SituationWatcher::get().onLeaveSituation(CustomSituation::isInHunterGuildCard, [this]() { needsAllPlayerFetch = true; });
         SituationWatcher::get().onLeaveSituation(CustomSituation::isInCharacterCreator, [this]() { needsAllPlayerFetch = true; });
 
+        setupLists();
     }
+
+    void PlayerTracker::setupLists() {
+        bool gotNumPlayers = getPlayerListSize(playerListSize);
+        if (!gotNumPlayers) {
+            DEBUG_STACK.fpush<PLAYER_TRACKER_LOG_TAG>(DebugStack::Color::COL_ERROR, "Failed to get player list from Player Manager! Player modifications will not function.");
+        }
+        else {
+            DEBUG_STACK.fpush<PLAYER_TRACKER_LOG_TAG>(DebugStack::Color::COL_SUCCESS, "Successfully fetched player list size: {}", playerListSize);
+            
+            // empty initialize arrays
+			playersToFetch             .resize(playerListSize, false);
+			occupiedNormalGameplaySlots.resize(playerListSize, false);
+			playerInfos                .resize(playerListSize, std::nullopt);
+			persistentPlayerInfos      .resize(playerListSize, std::nullopt);
+			playerInfoCaches           .resize(playerListSize, std::nullopt);
+        }
+	}
+
+    bool PlayerTracker::getPlayerListSize(size_t& out) {
+        REApi::ManagedObject* list = REFieldPtr<REApi::ManagedObject>(playerManager.get(), "_PlayerList");
+        if (!list) return false;
+
+        REApi::ManagedObject* enumerator = REInvokePtr<REApi::ManagedObject>(list, "GetEnumerator()", {});
+        if (!enumerator) return false;
+
+        constexpr size_t fetchCap = 2000; // Arbitrary cap to prevent infinite loops in case of something going wrong with the enumerator
+        bool canMove = REInvoke<bool>(enumerator, "MoveNext()", {}, InvokeReturnType::BOOL);
+        size_t cnt = 0;
+        while (canMove&& cnt < fetchCap) {
+            cnt++;
+            canMove = REInvoke<bool>(enumerator, "MoveNext()", {}, InvokeReturnType::BOOL);
+        }
+
+        out = cnt;
+        return cnt > 0;
+	}
 
     const std::vector<PlayerData> PlayerTracker::getPlayerList() const {
         std::vector<PlayerData> playerDataList;
         for (const auto& info : playerInfos) {
-            if (info != nullptr) playerDataList.push_back(info->playerData);
+            if (info.has_value()) playerDataList.push_back(info->playerData);
         }
         return playerDataList;
     }
@@ -116,11 +153,10 @@ namespace kbf {
             const PlayerData& player = *players[i].first;
             size_t idx = players[i].second;
 
-            if (playerInfos[idx] == nullptr)                                        PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
+            if (!playerInfos[idx].has_value())                                      PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
             if (playerApplyDelays[player] && playerApplyDelays[player].has_value()) PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
 
-            const PlayerInfo* infoPtr = playerInfos[idx].get();
-            if (infoPtr == nullptr) {
+            if (!playerInfos[idx].has_value()) {
                 playerApplyDelays.erase(player);
                 PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
             }
@@ -128,15 +164,16 @@ namespace kbf {
             const PlayerInfo& info = *playerInfos[idx];
             if (!info.visible) PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
 
-            PersistentPlayerInfo* pInfo = persistentPlayerInfos[idx].get();
-            if (pInfo == nullptr) PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
-            if (!pInfo->areSetPointersValid()) {
-                persistentPlayerInfos[idx] = nullptr;
+            if (!persistentPlayerInfos[idx].has_value()) PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
+
+			PersistentPlayerInfo& pInfo = persistentPlayerInfos[idx].value();
+            if (!persistentPlayerInfos[idx].value().areSetPointersValid()) {
+                persistentPlayerInfos[idx] = std::nullopt;
                 PROFILED_FLOW_OP(profiler, BLOCK_INFO_VALIDATION, continue);
             }
 			END_CPU_PROFILING_BLOCK(profiler, BLOCK_INFO_VALIDATION);
 
-            if (pInfo->boneManager && pInfo->partManager) {
+            if (pInfo.boneManager && pInfo.partManager) {
 
                 // Always apply base presets when they are present, but refrain from re-applying the same base preset multiple times.
                 std::unordered_set<std::string> presetBasesApplied{};
@@ -146,7 +183,7 @@ namespace kbf {
 
                 bool applyError = false;
                 for (ArmourPiece piece = ArmourPiece::AP_MIN_EXCLUDING_SET; piece <= ArmourPiece::AP_MAX_EXCLUDING_SLINGER; piece = static_cast<ArmourPiece>(static_cast<int>(piece) + 1)) {
-                    std::optional<ArmourSet>& armourPiece = pInfo->armourInfo.getPiece(piece);
+                    std::optional<ArmourSet>& armourPiece = pInfo.armourInfo.getPiece(piece);
 
                     if (armourPiece.has_value()) {
                         const Preset* preset = dataManager.getActivePreset(player, armourPiece.value(), piece);
@@ -157,7 +194,7 @@ namespace kbf {
                         const Preset* activePreset = usePreview ? previewedPreset : preset;
 
 						BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_BONES);
-                        BoneManager::BoneApplyStatusFlag applyFlag = pInfo->boneManager->applyPreset(activePreset, piece);
+                        BoneManager::BoneApplyStatusFlag applyFlag = pInfo.boneManager->applyPreset(activePreset, piece);
                         bool invalidBones = applyFlag == BoneManager::BoneApplyStatusFlag::BONE_APPLY_ERROR_INVALID_BONE;
                         if (invalidBones) { 
                             applyError = true; 
@@ -168,17 +205,17 @@ namespace kbf {
 						END_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_BONES);
 
 						BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_PARTS);
-                        pInfo->partManager->applyPreset(activePreset, piece);
+                        pInfo.partManager->applyPreset(activePreset, piece);
 						END_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_PARTS);
 
 						BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_MATS);
-						pInfo->materialManager->applyPreset(activePreset, piece);
+						pInfo.materialManager->applyPreset(activePreset, piece);
 						END_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_MATS);
 
                         if (!invalidBones && activePreset->set.hasModifiers() && !presetBasesApplied.contains(activePreset->uuid)) {
                             BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_BONES);
                             presetBasesApplied.insert(activePreset->uuid);
-                            BoneManager::BoneApplyStatusFlag baseApplyFlag = pInfo->boneManager->applyPreset(activePreset, AP_SET);
+                            BoneManager::BoneApplyStatusFlag baseApplyFlag = pInfo.boneManager->applyPreset(activePreset, AP_SET);
                             bool invalidBaseBones = baseApplyFlag == BoneManager::BoneApplyStatusFlag::BONE_APPLY_ERROR_INVALID_BONE;
                             if (invalidBaseBones) { 
                                 applyError = true; 
@@ -206,26 +243,26 @@ namespace kbf {
                             || (info.isRidingSeikret && dataManager.settings().forceShowWeaponWhenOnSeikret)
                             || (info.isSharpening && dataManager.settings().forceShowWeaponWhenSharpening);
 
-                        if (pInfo->Wp_Parent_GameObject)           REInvokeVoid(pInfo->Wp_Parent_GameObject,           "set_DrawSelf", { (void*)(weaponVisible) });
-                        if (pInfo->WpSub_Parent_GameObject)        REInvokeVoid(pInfo->WpSub_Parent_GameObject,        "set_DrawSelf", { (void*)(weaponVisible) });
-                        if (pInfo->Wp_ReserveParent_GameObject)    REInvokeVoid(pInfo->Wp_ReserveParent_GameObject,    "set_DrawSelf", { (void*)(weaponVisible) });
-                        if (pInfo->WpSub_ReserveParent_GameObject) REInvokeVoid(pInfo->WpSub_ReserveParent_GameObject, "set_DrawSelf", { (void*)(weaponVisible) });
+                        if (pInfo.Wp_Parent_GameObject)           REInvokeVoid(pInfo.Wp_Parent_GameObject,           "set_DrawSelf", { (void*)(weaponVisible) });
+                        if (pInfo.WpSub_Parent_GameObject)        REInvokeVoid(pInfo.WpSub_Parent_GameObject,        "set_DrawSelf", { (void*)(weaponVisible) });
+                        if (pInfo.Wp_ReserveParent_GameObject)    REInvokeVoid(pInfo.Wp_ReserveParent_GameObject,    "set_DrawSelf", { (void*)(weaponVisible) });
+                        if (pInfo.WpSub_ReserveParent_GameObject) REInvokeVoid(pInfo.WpSub_ReserveParent_GameObject, "set_DrawSelf", { (void*)(weaponVisible) });
                     
                         bool kinsectVisible = !dataManager.settings().enableHideKinsect || weaponVisible;
 
                         const static reframework::API::TypeDefinition* def_GameObject = reframework::API::get()->tdb()->find_type("via.GameObject");
-                        bool validWpInsect        = pInfo->Wp_Insect        && checkREPtrValidity(pInfo->Wp_Insect,        def_GameObject);
-						bool validWpReserveInsect = pInfo->Wp_ReserveInsect && checkREPtrValidity(pInfo->Wp_ReserveInsect, def_GameObject);
+                        bool validWpInsect        = pInfo.Wp_Insect        && checkREPtrValidity(pInfo.Wp_Insect,        def_GameObject);
+						bool validWpReserveInsect = pInfo.Wp_ReserveInsect && checkREPtrValidity(pInfo.Wp_ReserveInsect, def_GameObject);
 
-                        if (validWpInsect)        REInvokeVoid(pInfo->Wp_Insect,        "set_DrawSelf", { (void*)(kinsectVisible) });
-                        if (validWpReserveInsect) REInvokeVoid(pInfo->Wp_ReserveInsect, "set_DrawSelf", { (void*)(kinsectVisible) });
+                        if (validWpInsect)        REInvokeVoid(pInfo.Wp_Insect,        "set_DrawSelf", { (void*)(kinsectVisible) });
+                        if (validWpReserveInsect) REInvokeVoid(pInfo.Wp_ReserveInsect, "set_DrawSelf", { (void*)(kinsectVisible) });
                     }
 					END_CPU_PROFILING_BLOCK(profiler, BLOCK_WEAPON_VIS);
 
 					BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_SLINGER_VIS);
                     // Slinger Visibility
                     bool slingerVisible = !hideSlinger || (info.inCombat && dataManager.settings().hideSlingerOutsideOfCombatOnly);
-                    if (pInfo->Slinger_GameObject) REInvokeVoid(pInfo->Slinger_GameObject, "set_DrawSelf", { (void*)(slingerVisible) });
+                    if (pInfo.Slinger_GameObject) REInvokeVoid(pInfo.Slinger_GameObject, "set_DrawSelf", { (void*)(slingerVisible) });
 					END_CPU_PROFILING_BLOCK(profiler, BLOCK_SLINGER_VIS);
                 }
             }
@@ -238,8 +275,8 @@ namespace kbf {
         for (auto& p : playerInfos)                 p.reset();
         for (auto& p : persistentPlayerInfos)       p.reset();
         
-        playersToFetch.fill(false);
-        occupiedNormalGameplaySlots.fill(false);
+		std::fill(playersToFetch.begin(), playersToFetch.end(), false);
+		std::fill(occupiedNormalGameplaySlots.begin(), occupiedNormalGameplaySlots.end(), false);
 
         saveSelectHunterTransformCache              = nullptr;
         saveSelectSceneControllerCache              = nullptr;
@@ -394,10 +431,10 @@ namespace kbf {
         //--------------------------------------------------
 
         playerApplyDelays[persistentInfo.playerData] = std::chrono::high_resolution_clock::now();
-        persistentPlayerInfos[0] = std::make_unique<PersistentPlayerInfo>(std::move(persistentInfo));
+        persistentPlayerInfos[0] = std::move(persistentInfo);
 
         playerSlotTable.emplace(info.playerData, 0);
-        playerInfos[0] = std::make_unique<PlayerInfo>(std::move(info));
+        playerInfos[0] = std::move(info);
     }
 
     bool PlayerTracker::fetchPlayers_MainMenu_BasicInfo(PlayerInfo& outInfo, int& outSaveIdx) {
@@ -575,11 +612,11 @@ namespace kbf {
             //--------------------------------------------------
 
             playerApplyDelays[persistentInfo.playerData] = std::chrono::high_resolution_clock::now();
-            persistentPlayerInfos[0] = std::make_unique<PersistentPlayerInfo>(std::move(persistentInfo));
+            persistentPlayerInfos[0] = std::move(persistentInfo);
         }
 
         playerSlotTable.emplace(info.playerData, 0);
-        playerInfos[0] = std::make_unique<PlayerInfo>(std::move(info));
+        playerInfos[0] = std::move(info);
     }
 
     bool PlayerTracker::fetchPlayers_SaveSelect_BasicInfo(PlayerInfo& outInfo) {
@@ -768,11 +805,11 @@ namespace kbf {
             //--------------------------------------------------
 
             playerApplyDelays[persistentInfo.playerData] = std::chrono::high_resolution_clock::now();
-            persistentPlayerInfos[0] = std::make_unique<PersistentPlayerInfo>(std::move(persistentInfo));
+            persistentPlayerInfos[0] = std::move(persistentInfo);
         }
 
         playerSlotTable.emplace(info.playerData, 0);
-        playerInfos[0] = std::make_unique<PlayerInfo>(std::move(info));
+        playerInfos[0] = std::move(info);
     }
 
     bool PlayerTracker::fetchPlayers_CharacterCreator_BasicInfo(PlayerInfo& outInfo) {
@@ -906,11 +943,11 @@ namespace kbf {
 			//--------------------------------------------------
 
             playerApplyDelays[persistentInfo.playerData] = std::chrono::high_resolution_clock::now();
-            persistentPlayerInfos[0] = std::make_unique<PersistentPlayerInfo>(std::move(persistentInfo));
+            persistentPlayerInfos[0] = std::move(persistentInfo);
         }
 
         playerSlotTable.emplace(info.playerData, 0);
-        playerInfos[0] = std::make_unique<PlayerInfo>(std::move(info));
+        playerInfos[0] = std::move(info);
     }
 
     bool PlayerTracker::fetchPlayers_HunterGuildCard_BasicInfo(PlayerInfo& outInfo) {
@@ -1026,7 +1063,7 @@ namespace kbf {
         bool online  = SituationWatcher::inSituation(isOnline);
 
         const bool useCache = !needsAllPlayerFetch;
-        for (size_t i = 0; i < PLAYER_LIST_SIZE; i++) {
+        for (size_t i = 0; i < playerListSize; i++) {
             if (needsAllPlayerFetch || occupiedNormalGameplaySlots[i] || playersToFetch[i]) {
                 fetchPlayers_NormalGameplay_SinglePlayer(i, useCache, inQuest, online);
             }
@@ -1090,7 +1127,7 @@ namespace kbf {
         END_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Normal Gameplay - Visibility");
 
         // Fetch when requested, or if no fetch has been done but the player is in-view.
-        if (playersToFetch[i] || (info.visible && persistentPlayerInfos[i] == nullptr)) {
+        if (playersToFetch[i] || (info.visible && !persistentPlayerInfos[i].has_value())) {
             BEGIN_CPU_PROFILING_BLOCK(CpuProfiler::GlobalMultiScopeProfiler, "Player Fetch - Normal Gameplay - Persistent Info");
 
             PersistentPlayerInfo persistentInfo{};
@@ -1101,7 +1138,7 @@ namespace kbf {
             if (fetchedPInfo) {
                 playersToFetch[i] = false;
                 playerApplyDelays[persistentInfo.playerData] = std::chrono::high_resolution_clock::now();
-                persistentPlayerInfos[i] = std::make_unique<PersistentPlayerInfo>(std::move(persistentInfo));
+                persistentPlayerInfos[i] = std::move(persistentInfo);
                 occupiedNormalGameplaySlots[i] = true;
             }
 
@@ -1109,7 +1146,7 @@ namespace kbf {
         }
 
         if (!playerSlotTable.contains(info.playerData)) playerSlotTable.emplace(info.playerData, i);
-        playerInfos[i] = std::make_unique<PlayerInfo>(std::move(info));
+        playerInfos[i] = std::move(info);
     }
 
     PlayerFetchFlags PlayerTracker::fetchPlayer_BasicInfo(size_t i, bool inQuest, bool online, PlayerInfo& out) {
@@ -1689,16 +1726,16 @@ namespace kbf {
         if (!pInfo.Transform_body) return false;
         if (!pInfo.Transform_legs) return false;
 
-        pInfo.boneManager = std::make_unique<BoneManager>(
-            dataManager, 
-            pInfo.armourInfo, 
+        pInfo.boneManager = BoneManager{
+            dataManager,
+            pInfo.armourInfo,
             pInfo.Transform_base,
             pInfo.Transform_helm,
-            pInfo.Transform_body, 
+            pInfo.Transform_body,
             pInfo.Transform_arms,
             pInfo.Transform_coil,
-            pInfo.Transform_legs, 
-            info.playerData.female);
+            pInfo.Transform_legs,
+            info.playerData.female };
 
         return pInfo.boneManager->isInitialized();
     }
@@ -1708,25 +1745,7 @@ namespace kbf {
         if (!pInfo.Transform_body) return false;
         if (!pInfo.Transform_legs) return false;
 
-        pInfo.partManager = std::make_unique<PartManager>(
-            dataManager, 
-            pInfo.armourInfo,
-            pInfo.Transform_base,
-            pInfo.Transform_helm,
-            pInfo.Transform_body,
-            pInfo.Transform_arms,
-            pInfo.Transform_coil,
-            pInfo.Transform_legs,
-            info.playerData.female);
-
-        return pInfo.partManager->isInitialized();
-    }
-
-    bool PlayerTracker::fetchPlayer_Materials(const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
-        if (info.pointers.Transform == nullptr) return false;
-        if (!pInfo.Transform_body) return false;
-
-        pInfo.materialManager = std::make_unique<MaterialManager>(
+        pInfo.partManager = PartManager{
             dataManager,
             pInfo.armourInfo,
             pInfo.Transform_base,
@@ -1735,7 +1754,25 @@ namespace kbf {
             pInfo.Transform_arms,
             pInfo.Transform_coil,
             pInfo.Transform_legs,
-            info.playerData.female);
+            info.playerData.female };
+
+        return pInfo.partManager->isInitialized();
+    }
+
+    bool PlayerTracker::fetchPlayer_Materials(const PlayerInfo& info, PersistentPlayerInfo& pInfo) {
+        if (info.pointers.Transform == nullptr) return false;
+        if (!pInfo.Transform_body) return false;
+
+        pInfo.materialManager = MaterialManager{
+            dataManager,
+            pInfo.armourInfo,
+            pInfo.Transform_base,
+            pInfo.Transform_helm,
+            pInfo.Transform_body,
+            pInfo.Transform_arms,
+            pInfo.Transform_coil,
+            pInfo.Transform_legs,
+            info.playerData.female };
 
         return pInfo.materialManager->isInitialized();
     }
@@ -2068,7 +2105,7 @@ namespace kbf {
         if (app_HunterCharacter == nullptr) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 
         int idx = REInvoke<int>(app_HunterCharacter, "get_StableMemberIndex", {}, InvokeReturnType::DWORD);
-        if (idx < 0 || idx >= PLAYER_LIST_SIZE) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
+        if (idx < 0 || idx >= playerListSize) return REFRAMEWORK_HOOK_CALL_ORIGINAL;
 
         playersToFetch[static_cast<size_t>(idx)] = true;
 
@@ -2080,8 +2117,8 @@ namespace kbf {
         if (playerInfos[index]) {
             playerSlotTable.erase(playerInfos[index]->playerData);
             occupiedNormalGameplaySlots[index] = false;
-            playerInfos[index] = nullptr;
-            persistentPlayerInfos[index] = nullptr;
+            playerInfos[index]           = std::nullopt;
+            persistentPlayerInfos[index] = std::nullopt;
         }
     }
 

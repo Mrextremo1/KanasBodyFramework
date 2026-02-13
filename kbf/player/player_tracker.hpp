@@ -14,7 +14,7 @@
 
 #include <kbf/util/re_engine/re_singleton.hpp>
 
-#define PLAYER_LIST_SIZE 103
+//#define PLAYER_LIST_SIZE 103
 
 namespace kbf {
 
@@ -31,13 +31,17 @@ namespace kbf {
         const PlayerInfo& getPlayerInfo(const PlayerData& playerData) const { return *playerInfos.at(playerSlotTable.at(playerData)); }
         PlayerInfo& getPlayerInfo(const PlayerData& playerData) { return *playerInfos.at(playerSlotTable.at(playerData)); }
 
-		const PersistentPlayerInfo* getPersistentPlayerInfo(const PlayerData& playerData) const { return persistentPlayerInfos.at(playerSlotTable.at(playerData)).get(); }
-		PersistentPlayerInfo* getPersistentPlayerInfo(const PlayerData& playerData) { return persistentPlayerInfos.at(playerSlotTable.at(playerData)).get(); }
+		const std::optional<PersistentPlayerInfo>& getPersistentPlayerInfo(const PlayerData& playerData) const { return persistentPlayerInfos.at(playerSlotTable.at(playerData)); }
+		std::optional<PersistentPlayerInfo>& getPersistentPlayerInfo(const PlayerData& playerData) { return persistentPlayerInfos.at(playerSlotTable.at(playerData)); }
 
     private:
         void initialize();
+        void setupLists();
+		bool getPlayerListSize(size_t& out);
+
         KBFDataManager& dataManager;
 		static PlayerTracker* g_instance;
+		size_t playerListSize = 0;
 
         void fetchPlayers();
         void fetchPlayers_MainMenu();
@@ -118,12 +122,12 @@ namespace kbf {
         std::unordered_map<PlayerData, size_t> playerSlotTable{};
         std::unordered_map<PlayerData, std::optional<std::chrono::steady_clock::time_point>> playerApplyDelays{};
 
-        std::array<bool, PLAYER_LIST_SIZE> playersToFetch;
-        std::array<bool, PLAYER_LIST_SIZE> occupiedNormalGameplaySlots{};
-        std::array<std::unique_ptr<PlayerInfo>, PLAYER_LIST_SIZE> playerInfos;
-		std::array<std::unique_ptr<PersistentPlayerInfo>, PLAYER_LIST_SIZE> persistentPlayerInfos;
+        std::vector<bool> playersToFetch;
+        std::vector<bool> occupiedNormalGameplaySlots{};
+        std::vector<std::optional<PlayerInfo>> playerInfos;
+		std::vector<std::optional<PersistentPlayerInfo>> persistentPlayerInfos;
 
-        std::array<std::optional<NormalGameplayPlayerCache>, PLAYER_LIST_SIZE> playerInfoCaches;
+        std::vector<std::optional<NormalGameplayPlayerCache>> playerInfoCaches;
 
         // Main Menu Refs
         RENativeSingleton sceneManager{ "via.SceneManager" };

@@ -46,7 +46,7 @@ namespace kbf {
 		std::unordered_map<std::string, REApi::ManagedObject*> getBoneNames(REApi::ManagedObject* jointArr) const;
 		void DEBUG_printBoneList(REApi::ManagedObject* jointArr, std::string message) const;
 
-		KBFDataManager& dataManager;
+		KBFDataManager* dataManager;
 		ArmourInfo armourInfo;
 		bool female;
 		bool initialized = false;

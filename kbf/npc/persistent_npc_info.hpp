@@ -30,9 +30,9 @@ namespace kbf {
 
 		reframework::API::ManagedObject* Slinger_GameObject = nullptr;
 
-		std::unique_ptr<BoneManager> boneManager         = nullptr;
-		std::unique_ptr<PartManager> partManager         = nullptr;
-		std::unique_ptr<MaterialManager> materialManager = nullptr;
+		std::optional<BoneManager> boneManager         = std::nullopt;
+		std::optional<PartManager> partManager         = std::nullopt;
+		std::optional<MaterialManager> materialManager = std::nullopt;
 
 		bool areSetPointersValid() const {
 			static reframework::API::TypeDefinition* def_ViaTransform = reframework::API::get()->tdb()->find_type("via.Transform");

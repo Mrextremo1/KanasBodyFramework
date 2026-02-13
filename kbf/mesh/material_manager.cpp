@@ -29,7 +29,7 @@ namespace kbf {
 		REApi::ManagedObject* coilTransform,
 		REApi::ManagedObject* legsTransform,
 		bool female
-	) : dataManager{ dataManager },
+	) : dataManager{ &dataManager },
 		armourInfo{ armour },
 		baseTransform{ baseTransform },
 		helmTransform{ helmTransform },
@@ -215,27 +215,27 @@ namespace kbf {
 		if (hasHelmMesh) {
 			helmMaterials = getMaterials(helmMesh, &helmQuickOverrideMatches);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.helm.value(), female };
-			dataManager.materialCacheManager().cache(armourWithSex, helmMaterials, ArmourPiece::AP_HELM);
+			dataManager->materialCacheManager().cache(armourWithSex, helmMaterials, ArmourPiece::AP_HELM);
 		}
 		if (hasBodyMesh) {
 			bodyMaterials = getMaterials(bodyMesh, &bodyQuickOverrideMatches);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.body.value(), female };
-			dataManager.materialCacheManager().cache(armourWithSex, bodyMaterials, ArmourPiece::AP_BODY);
+			dataManager->materialCacheManager().cache(armourWithSex, bodyMaterials, ArmourPiece::AP_BODY);
 		}
 		if (hasArmsMesh) {
 			armsMaterials = getMaterials(armsMesh, &armsQuickOverrideMatches);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.arms.value(), female };
-			dataManager.materialCacheManager().cache(armourWithSex, armsMaterials, ArmourPiece::AP_ARMS);
+			dataManager->materialCacheManager().cache(armourWithSex, armsMaterials, ArmourPiece::AP_ARMS);
 		}
 		if (hasCoilMesh) {
 			coilMaterials = getMaterials(coilMesh, &coilQuickOverrideMatches);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.coil.value(), female };
-			dataManager.materialCacheManager().cache(armourWithSex, coilMaterials, ArmourPiece::AP_COIL);
+			dataManager->materialCacheManager().cache(armourWithSex, coilMaterials, ArmourPiece::AP_COIL);
 		}
 		if (hasLegsMesh) {
 			legsMaterials = getMaterials(legsMesh, &legsQuickOverrideMatches);
 			ArmourSetWithCharacterSex armourWithSex{ armourInfo.legs.value(), female };
-			dataManager.materialCacheManager().cache(armourWithSex, legsMaterials, ArmourPiece::AP_LEGS);
+			dataManager->materialCacheManager().cache(armourWithSex, legsMaterials, ArmourPiece::AP_LEGS);
 		}
 
 		return bodyMaterials.size() > 0;

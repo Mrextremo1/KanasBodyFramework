@@ -14,7 +14,6 @@
 
 // UPDATE NOTE: This size may change with future updates.
 
-#define NPC_LIST_SIZE 685
 #define TRY_FETCH_LIMIT 100
 
 namespace kbf {
@@ -32,13 +31,17 @@ namespace kbf {
         const NpcInfo& getNpcInfo(size_t idx) const { return *npcInfos.at(idx); }
         NpcInfo& getNpcInfo(size_t idx) { return *npcInfos.at(idx); }
 
-		const PersistentNpcInfo* getPersistentNpcInfo(size_t idx) const { return persistentNpcInfos.at(idx).get(); }
-		PersistentNpcInfo* getPersistentNpcInfo(size_t idx) { return persistentNpcInfos.at(idx).get(); }
+		const std::optional<PersistentNpcInfo>& getPersistentNpcInfo(size_t idx) const { return persistentNpcInfos.at(idx); }
+        std::optional<PersistentNpcInfo>& getPersistentNpcInfo(size_t idx) { return persistentNpcInfos.at(idx); }
 
     private:
         void initialize();
+        void setupLists();
+        bool getNpcListSize(size_t& out);
+
 		KBFDataManager& dataManager;
         static NpcTracker* g_instance;
+		size_t npcListSize = 0;
 
         void fetchNpcs();
         void fetchNpcs_MainMenu();
@@ -70,13 +73,13 @@ namespace kbf {
         std::mutex fetchListMutex;
 
         std::unordered_set<size_t> npcSlotTable{};
-        std::array<bool, NPC_LIST_SIZE> npcsToFetch;
-        std::array<size_t, NPC_LIST_SIZE> tryFetchCountTable{};
+        std::vector<bool> npcsToFetch;
+        std::vector<size_t> tryFetchCountTable{};
         std::unordered_map<size_t, std::optional<std::chrono::steady_clock::time_point>> npcApplyDelays{};
-        std::array<std::unique_ptr<NpcInfo>, NPC_LIST_SIZE> npcInfos;
-		std::array<std::unique_ptr<PersistentNpcInfo>, NPC_LIST_SIZE> persistentNpcInfos;
+        std::vector<std::optional<NpcInfo>> npcInfos;
+		std::vector<std::optional<PersistentNpcInfo>> persistentNpcInfos;
 
-        std::array<std::optional<NormalGameplayNpcCache>, NPC_LIST_SIZE> npcInfoCaches;
+        std::vector<std::optional<NormalGameplayNpcCache>> npcInfoCaches;
 
         // Main Menu Refs
         RENativeSingleton sceneManager{ "via.SceneManager" };

@@ -35,7 +35,7 @@ namespace kbf {
 		bool getMesh(REApi::ManagedObject* transform, REApi::ManagedObject** out) const;
 		void getParts(REApi::ManagedObject* mesh, std::vector<MeshPart>& out) const;
 
-		KBFDataManager& dataManager;
+		KBFDataManager* dataManager;
 		ArmourInfo armourInfo;
 		bool female;
 		bool initialized = false;

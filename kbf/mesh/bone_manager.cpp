@@ -22,7 +22,7 @@ namespace kbf {
 		REApi::ManagedObject* coilTransform,
 		REApi::ManagedObject* legsTransform,
 		bool female
-	) : dataManager{ dataManager }, 
+	) : dataManager{ &dataManager }, 
 		armourInfo{ armour }, 
 		female{ female }
 	{
@@ -140,7 +140,7 @@ namespace kbf {
 			if (piece != ArmourPiece::AP_SET) {
 				// Don't cache base bones as not tied to a specific armour set
 				ArmourSetWithCharacterSex armourWithSex{ armourInfo.getPiece(piece).value(), female};
-				dataManager.boneCacheManager().cache(armourWithSex, keys, piece);
+				dataManager->boneCacheManager().cache(armourWithSex, keys, piece);
 			}
 		}
 
