@@ -187,7 +187,6 @@ namespace kbf {
 
     const Preset* KBFDataManager::getActivePreset(NpcType npcId, bool female, const ArmourSet& armourSet, ArmourPiece piece) const {
         switch (npcId) {
-        case NpcType::NPC_TYPE_UNKNOWN: return nullptr;
         // ---- Core NPCs Mapping ----
         case NpcType::NPC_TYPE_ALMA: {
             if (!(ArmourDataManager::get().getResidentArmourPieces(armourSet) & ArmourPieceFlagBits::APF_BODY)) return nullptr;
@@ -237,6 +236,7 @@ namespace kbf {
 		case NpcType::NPC_TYPE_NIGHTMIST: return getPresetByUUID(presetDefaults.supportHunters.nightmist.ingot);
 		case NpcType::NPC_TYPE_FABIUS:    return getPresetByUUID(presetDefaults.supportHunters.fabius.defaultOutfit);
 		case NpcType::NPC_TYPE_NADIA:     return getPresetByUUID(presetDefaults.supportHunters.nadia.defaultOutfit);
+        case NpcType::NPC_TYPE_UNKNOWN: // Really, this should be skipped, but for now a lot of NPCs are classified as UNKOWN when they shouldn't be.
         case NpcType::NPC_TYPE_GENERIC: {
             const PresetGroup* activePresetGroup = getActivePresetGroup(npcId, female);
             if (activePresetGroup == nullptr) return nullptr;
