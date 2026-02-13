@@ -27,8 +27,10 @@ namespace kbf {
         static bool inSituation(KnownSituation situation) { return get().currentSituations.contains(situation); }
         static bool inCustomSituation(CustomSituation situation) { return get().checkCustomSituation(situation); }
 
-		void onTriggerSituation(KnownSituation situation, std::function<void()> callback) { situationCallbacks[situation].addCallback(callback); }
-		void onTriggerSituation(CustomSituation situation, std::function<void()> callback) { customSituationCallbacks[situation].addCallback(callback); }
+		void onEnterSituation(KnownSituation situation, std::function<void()> callback) { enterSituationCallbacks[situation].addCallback(callback); }
+		void onEnterSituation(CustomSituation situation, std::function<void()> callback) { enterCustomSituationCallbacks[situation].addCallback(callback); }
+        void onLeaveSituation(KnownSituation situation, std::function<void()> callback) { leaveSituationCallbacks[situation].addCallback(callback); }
+		void onLeaveSituation(CustomSituation situation, std::function<void()> callback) { leaveCustomSituationCallbacks[situation].addCallback(callback); }
 
     private:
         SituationWatcher() { initialize(); }
@@ -40,9 +42,9 @@ namespace kbf {
         void updateCustomSituations();
 
 		void addKnownSituation(KnownSituation situation); 
-        void removeKnownSituation(KnownSituation situation) { currentSituations.erase(situation); }
+        void removeKnownSituation(KnownSituation situation);
 		void addCustomSituation(CustomSituation situation); 
-		void removeCustomSituation(CustomSituation situation) { customSituations.erase(situation); }
+        void removeCustomSituation(CustomSituation situation);
 
         // Known Situation Hooks
         static int  situationPreStart(int argc, void** argv, REFrameworkTypeDefinitionHandle* arg_tys, unsigned long long ret_addr);
@@ -62,8 +64,10 @@ namespace kbf {
         std::unordered_set<KnownSituation> currentSituations{};
         std::unordered_set<CustomSituation> customSituations{};
 
-		std::unordered_map<KnownSituation, CallbackHandler>  situationCallbacks{};
-        std::unordered_map<CustomSituation, CallbackHandler> customSituationCallbacks{};
+		std::unordered_map<KnownSituation, CallbackHandler>  enterSituationCallbacks{};
+        std::unordered_map<CustomSituation, CallbackHandler> enterCustomSituationCallbacks{};
+		std::unordered_map<KnownSituation, CallbackHandler>  leaveSituationCallbacks{};
+		std::unordered_map<CustomSituation, CallbackHandler> leaveCustomSituationCallbacks{};
 
         // Pointers to some app.cSimpleStageControllers for various scenes that we need to track
         RESingleton MasterFieldManager{ "app.MasterFieldManager" };

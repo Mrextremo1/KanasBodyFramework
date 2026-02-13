@@ -37,38 +37,38 @@ namespace kbf {
 
         SituationWatcher& watcher = SituationWatcher::get();
 
-        watcher.onTriggerSituation(isOnline						     , initFn);
-        watcher.onTriggerSituation(isSoloOnline					     , initFn);
-        watcher.onTriggerSituation(isOfflineorMainMenu				 , initFn);
-        watcher.onTriggerSituation(isinQuestPreparing				 , initFn);
-        watcher.onTriggerSituation(isinQuestReady					 , initFn);
-        watcher.onTriggerSituation(isinQuestPlayingasHost			 , initFn);
-        watcher.onTriggerSituation(isinQuestPlayingasGuest			 , initFn);
-        watcher.onTriggerSituation(isinQuestPlayingfromFieldSurvey	 , initFn);
-        watcher.onTriggerSituation(DUPLICATE_isinQuestPlayingasGuest , initFn);
-        watcher.onTriggerSituation(isinArenaQuestPlayingasHost		 , initFn);
-        watcher.onTriggerSituation(isinQuestPressSelectToEnd		 , initFn);
-        watcher.onTriggerSituation(isinQuestEndAnnounce			     , initFn);
-        watcher.onTriggerSituation(isinQuestResultScreen			 , initFn);
-        watcher.onTriggerSituation(isinQuestLoadingResult			 , initFn);
-        watcher.onTriggerSituation(isinLinkPartyAsGuest			     , initFn);
-        watcher.onTriggerSituation(isinTrainingArea				     , initFn);
-        watcher.onTriggerSituation(isinJunctionArea				     , initFn);
-        watcher.onTriggerSituation(isinSuja						     , initFn);
-        watcher.onTriggerSituation(isinGrandHub					     , initFn);
-        watcher.onTriggerSituation(DUPLICATE_isinTrainingArea		 , initFn);
-        watcher.onTriggerSituation(isinBowlingGame					 , initFn);
-        watcher.onTriggerSituation(isinArmWrestling				     , initFn);
-        watcher.onTriggerSituation(isatTable						 , initFn);
-        //watcher.onTriggerSituation(isAlwaysOn						 , initFn); // outside of loaded game loop
+        watcher.onEnterSituation(isOnline						     , initFn);
+        watcher.onEnterSituation(isSoloOnline					     , initFn);
+        watcher.onEnterSituation(isOfflineorMainMenu				 , initFn);
+        watcher.onEnterSituation(isinQuestPreparing				     , initFn);
+        watcher.onEnterSituation(isinQuestReady					     , initFn);
+        watcher.onEnterSituation(isinQuestPlayingasHost			     , initFn);
+        watcher.onEnterSituation(isinQuestPlayingasGuest			 , initFn);
+        watcher.onEnterSituation(isinQuestPlayingfromFieldSurvey	 , initFn);
+        watcher.onEnterSituation(DUPLICATE_isinQuestPlayingasGuest   , initFn);
+        watcher.onEnterSituation(isinArenaQuestPlayingasHost		 , initFn);
+        watcher.onEnterSituation(isinQuestPressSelectToEnd		     , initFn);
+        watcher.onEnterSituation(isinQuestEndAnnounce			     , initFn);
+        watcher.onEnterSituation(isinQuestResultScreen			     , initFn);
+        watcher.onEnterSituation(isinQuestLoadingResult			     , initFn);
+        watcher.onEnterSituation(isinLinkPartyAsGuest			     , initFn);
+        watcher.onEnterSituation(isinTrainingArea				     , initFn);
+        watcher.onEnterSituation(isinJunctionArea				     , initFn);
+        watcher.onEnterSituation(isinSuja						     , initFn);
+        watcher.onEnterSituation(isinGrandHub					     , initFn);
+        watcher.onEnterSituation(DUPLICATE_isinTrainingArea		     , initFn);
+        watcher.onEnterSituation(isinBowlingGame					 , initFn);
+        watcher.onEnterSituation(isinArmWrestling				     , initFn);
+        watcher.onEnterSituation(isatTable						     , initFn);
+        //watcher.onEnterSituation(isAlwaysOn						 , initFn); // outside of loaded game loop
 
-        watcher.onTriggerSituation(isInMainMenuScene    , initFn);
-        watcher.onTriggerSituation(isInSaveSelectGUI    , initFn);
-        watcher.onTriggerSituation(isInCharacterCreator , initFn);
-        watcher.onTriggerSituation(isInHunterGuildCard  , initFn);
-        watcher.onTriggerSituation(isInCutscene         , initFn);
-        watcher.onTriggerSituation(isInGame             , initFn);
-        //watcher.onTriggerSituation(isInTitleMenus       , initFn); // outside of loaded game loop
+        watcher.onEnterSituation(isInMainMenuScene    , initFn);
+        watcher.onEnterSituation(isInSaveSelectGUI    , initFn);
+        watcher.onEnterSituation(isInCharacterCreator , initFn);
+        watcher.onEnterSituation(isInHunterGuildCard  , initFn);
+        watcher.onEnterSituation(isInCutscene         , initFn);
+        watcher.onEnterSituation(isInGame             , initFn);
+        //watcher.onEnterSituation(isInTitleMenus     , initFn); // outside of loaded game loop
     }
 
     KBF::~KBF() {

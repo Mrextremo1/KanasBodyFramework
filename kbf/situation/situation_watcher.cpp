@@ -111,7 +111,7 @@ namespace kbf {
             if      (situation == KnownSituation::DUPLICATE_isinQuestPlayingasGuest) situation = KnownSituation::isinQuestPlayingasGuest;
             else if (situation == KnownSituation::DUPLICATE_isinTrainingArea)        situation = KnownSituation::isinTrainingArea;
 
-            instance.addKnownSituation(situation);
+            instance.addKnownSituation(situation); // Should this really trigger every time? Too bad!
 
             std::string situationName = "UNKNOWN";
             if (SITUATION_NAMES.contains(i)) situationName = SITUATION_NAMES.at(i);
@@ -257,16 +257,32 @@ namespace kbf {
 	void SituationWatcher::addKnownSituation(KnownSituation situation) { 
         // Trigger callbacks on ENTERING situation
         if (!currentSituations.contains(situation)) {
-			situationCallbacks[situation].triggerAllCallbacks();
+			enterSituationCallbacks[situation].triggerAllCallbacks();
         }
         currentSituations.insert(situation); 
     }
 
+    void SituationWatcher::removeKnownSituation(KnownSituation situation) { 
+        // Trigger callbacks on LEAVING situation
+		if (currentSituations.contains(situation)) {
+            leaveSituationCallbacks[situation].triggerAllCallbacks();
+        }
+        currentSituations.erase(situation); 
+    }
+
 	void SituationWatcher::addCustomSituation(CustomSituation situation) { 
 		if (!customSituations.contains(situation)) { 
-            customSituationCallbacks[situation].triggerAllCallbacks(); 
+            enterCustomSituationCallbacks[situation].triggerAllCallbacks(); 
         }
         customSituations.insert(situation); 
     }
+
+    void SituationWatcher::removeCustomSituation(CustomSituation situation) { 
+		// Trigger callbacks on LEAVING situation
+        if (customSituations.contains(situation)) {
+            leaveCustomSituationCallbacks[situation].triggerAllCallbacks();
+        }
+        customSituations.erase(situation); 
+	}
 
 }
