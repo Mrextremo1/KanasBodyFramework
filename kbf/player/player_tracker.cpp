@@ -45,6 +45,11 @@ namespace kbf {
         kbf::HookManager::add_tdb("app.HunterCharacter", "warp",            onWarpHook,            nullptr, false);
 
         kbf::HookManager::add_tdb("app.GUI010102", "callback_ListSelect", saveSelectListSelectHook, nullptr, false);
+
+        // Fetch everything again after leaving these areas as lists will be cleared.
+        SituationWatcher::get().onLeaveSituation(CustomSituation::isInHunterGuildCard, [this]() { needsAllPlayerFetch = true; });
+        SituationWatcher::get().onLeaveSituation(CustomSituation::isInCharacterCreator, [this]() { needsAllPlayerFetch = true; });
+
     }
 
     const std::vector<PlayerData> PlayerTracker::getPlayerList() const {

@@ -31,6 +31,10 @@ namespace kbf {
 
         kbf::HookManager::add_tdb("app.NpcCharacterCore", "onWarp",        onNpcChangeStateHook, nullptr, false);
         kbf::HookManager::add_tdb("app.NpcCharacterCore", "setupHeadCtrl", onNpcChangeStateHook, nullptr, false);
+
+        // Fetch everything again after leaving these areas as lists will be cleared.
+		SituationWatcher::get().onLeaveSituation(CustomSituation::isInHunterGuildCard, [this]() { needsAllNpcFetch = true; });
+		SituationWatcher::get().onLeaveSituation(CustomSituation::isInCharacterCreator, [this]() { needsAllNpcFetch = true; });
     }
 
     const std::vector<size_t> NpcTracker::getNpcList() const {
