@@ -1572,6 +1572,13 @@ namespace kbf {
         if (!pInfo.armourInfo.coil.has_value()) return false;
         if (!pInfo.armourInfo.legs.has_value()) return false;
 
+        // Check model isn't still loading
+		REApi::ManagedObject* hunterDoll = REFieldPtr<REApi::ManagedObject>(sceneController, "_HunterDoll");
+		if (!hunterDoll) return false;
+
+		bool* requiresPartsSetup = REFieldPtr<bool>(hunterDoll, "_RequiresPartsSetup");
+		if (!requiresPartsSetup || *requiresPartsSetup) return false;
+
         REApi::ManagedObject* mcCharaMakeController = REFieldPtr<REApi::ManagedObject>(sceneController, "_HunterCharaMake");
         if (!mcCharaMakeController) return false;
 
