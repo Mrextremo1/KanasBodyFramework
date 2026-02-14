@@ -492,6 +492,7 @@ namespace CImGui {
     IM_FUNC_SIG(BeginPopupContextItem,   bool, SIG_BeginPopupContextItem);
     IM_FUNC_SIG(EndPopup,                void);
     IM_FUNC_SIG(TableGetRowIndex,        int);
+    IM_FUNC_SIG(TableGetColumnIndex,     int);
     IM_FUNC_SIG(GetFrameHeightWithSpacing, float);
     IM_FUNC_SIG(ShowStyleEditor,         void, SIG_ShowStyleEditor);
     IM_FUNC_SIG(ShowDemoWindow,          void, SIG_ShowDemoWindow);
@@ -647,6 +648,7 @@ namespace CImGui {
 	IM_FUNC(BeginPopupContextItem, bool, (const char* str_id, ImGuiPopupFlags popup_flags = 0), (ARG_BeginPopupContextItem));
     IM_FUNC(EndPopup,              void, (), ());
     IM_FUNC(TableGetRowIndex,      int, (), ());
+    IM_FUNC(TableGetColumnIndex,   int, (), ());
 	IM_FUNC(GetFrameHeightWithSpacing, float, (), ());
     IM_FUNC(ShowStyleEditor,       void, (ImGuiStyle* ref = nullptr), (ARG_ShowStyleEditor));
     IM_FUNC(ShowDemoWindow,        void, (bool* p_open = nullptr), (ARG_ShowDemoWindow));
@@ -820,7 +822,8 @@ namespace CImGui {
         IM_GET_FUNC(GetVersion);
 		IM_GET_FUNC(BeginPopupContextItem);
 		IM_GET_FUNC(EndPopup);
-		IM_GET_FUNC(TableGetRowIndex);
+        IM_GET_FUNC(TableGetRowIndex);
+        IM_GET_FUNC(TableGetColumnIndex);
 		IM_GET_FUNC(GetFrameHeightWithSpacing);
 		IM_GET_FUNC(ShowStyleEditor);
         IM_GET_FUNC(ShowDemoWindow);
@@ -981,7 +984,8 @@ namespace CImGui {
         ASSERT_LOADED(GetVersion);
 		ASSERT_LOADED(BeginPopupContextItem);
 		ASSERT_LOADED(EndPopup);
-		ASSERT_LOADED(TableGetRowIndex);
+        ASSERT_LOADED(TableGetRowIndex);
+        ASSERT_LOADED(TableGetColumnIndex);
 		ASSERT_LOADED(GetFrameHeightWithSpacing);
 		ASSERT_LOADED(ShowStyleEditor);
 		ASSERT_LOADED(ShowDemoWindow);
