@@ -451,7 +451,7 @@ namespace kbf {
         CImGui::Spacing();
         CImGui::Spacing();
 
-        const std::vector<ArmourSet> armourSets = ArmourDataManager::get().getFilteredArmourSets(filterStr);
+        std::vector<ArmourSet> armourSets = ArmourDataManager::get().getFilteredArmourSets(filterStr);
         if (armourSets.size() == 0) {
             constexpr char const* noArmourStr = "Armour Set Search Found Zero Results.";
             preAlignCellContentHorizontal(noArmourStr);
@@ -489,6 +489,10 @@ namespace kbf {
             CImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(LIST_PADDING.x, 0.0f));
 
             constexpr float rowHeight = 40.0f;
+
+            // Add default armour set back in at front as not in list by default
+            // O(N) -- Too bad!
+            armourSets.insert(armourSets.begin(), ArmourSet::DEFAULT);
 
             for (const ArmourSet& armour : armourSets) {
                 CImGui::TableNextRow();
