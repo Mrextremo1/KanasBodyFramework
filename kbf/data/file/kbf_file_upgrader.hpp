@@ -53,6 +53,12 @@ namespace kbf {
 			{ {1,0,6}, [this](rapidjson::Document& doc) { return upgradePartCache_1_0_6(doc); } },
 		};
 
+		bool upgradeDotKBF_1_2_0(rapidjson::Document& doc);
+		UpgradeLUT dotKBFUpgradeLUT{
+			{ {1,2,0}, [this](rapidjson::Document& doc) { return upgradeDotKBF_1_2_0(doc); } },
+		};
+
+
 		UpgradeResult UPGRADE_NO_OP(SemanticVersion ver, rapidjson::Document& doc) { return UpgradeResult::NO_UPGRADE_NEEDED; }
 	};
 
