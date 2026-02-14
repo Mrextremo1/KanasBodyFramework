@@ -177,12 +177,17 @@ namespace kbf {
 	}
 
 	ArmourPieceFlags ArmourDataManager::getResidentArmourPieces(const ArmourSet& set) const {
-		if (knownNpcPrefabs.contains(set)) return ArmourPieceFlagBits::APF_BODY; // All prefabs apply under 'body' only
-		if (set == ArmourSet::DEFAULT) return ArmourPieceFlagBits::APF_ALL;
+		constexpr ArmourPieceFlags partsAndMatsFlags = ArmourPieceFlagBits::CUSTOM_APF_PARTS | ArmourPieceFlagBits::CUSTOM_APF_MATS;
+
+		if (knownNpcPrefabs.contains(set)) return ArmourPieceFlagBits::APF_BODY | partsAndMatsFlags; // All prefabs apply under 'body' only
+		// Note: Disable global part and mat overrides as these are inherently set-specific.
+		if (set == ArmourSet::DEFAULT)
+			return ArmourPieceFlagBits::APF_ALL;
 
 		auto it = knownArmourSeries.find(set);
 		if (it != knownArmourSeries.end()) {
-			return armourSeriesIDMappings.at(it->second).residentPieces;
+			// Make sure to enable parts and mat flags too
+			return armourSeriesIDMappings.at(it->second).residentPieces | partsAndMatsFlags;
 		}
 
 		return ArmourPieceFlagBits::APF_NONE;

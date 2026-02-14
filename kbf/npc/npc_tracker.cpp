@@ -155,12 +155,16 @@ namespace kbf {
                         if (preset == nullptr && !usePreview) continue;
 
                         const Preset* activePreset = usePreview ? previewedPreset : preset;
+                        const Preset* setWidePartsPreset = usePreview ? nullptr : dataManager.getActivePreset(pInfo.npcID, info.female, armourPiece.value(), ArmourPiece::CUSTOM_AP_PARTS);
+                        const Preset* setWideMatsPreset  = usePreview ? nullptr : dataManager.getActivePreset(pInfo.npcID, info.female, armourPiece.value(), ArmourPiece::CUSTOM_AP_MATS);
 
                         BoneManager::BoneApplyStatusFlag applyFlag = pInfo.boneManager->applyPreset(activePreset, piece);
                         bool invalidBones = applyFlag == BoneManager::BoneApplyStatusFlag::BONE_APPLY_ERROR_INVALID_BONE;
                         if (invalidBones) { clearNpcSlot(idx); npcsToFetch[idx] = true; break; }
 
+                        pInfo.partManager->applyPreset(setWidePartsPreset, piece); // Apply set-wide part overrides first
                         pInfo.partManager->applyPreset(activePreset, piece);
+                        pInfo.materialManager->applyPreset(setWideMatsPreset, piece); // Apply set-wide material overrides first
 						pInfo.materialManager->applyPreset(activePreset, piece);
 
                         if (!invalidBones && activePreset->set.hasModifiers() && !presetBasesApplied.contains(activePreset->uuid)) {

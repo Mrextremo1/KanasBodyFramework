@@ -192,6 +192,8 @@ namespace kbf {
                         if (preset == nullptr && !usePreview) continue;
 
                         const Preset* activePreset = usePreview ? previewedPreset : preset;
+                        const Preset* setWidePartsPreset = usePreview ? nullptr : dataManager.getActivePreset(player, armourPiece.value(), ArmourPiece::CUSTOM_AP_PARTS);
+                        const Preset* setWideMatsPreset  = usePreview ? nullptr : dataManager.getActivePreset(player, armourPiece.value(), ArmourPiece::CUSTOM_AP_MATS);
 
 						BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_BONES);
                         BoneManager::BoneApplyStatusFlag applyFlag = pInfo.boneManager->applyPreset(activePreset, piece);
@@ -205,10 +207,12 @@ namespace kbf {
 						END_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_BONES);
 
 						BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_PARTS);
+                        pInfo.partManager->applyPreset(setWidePartsPreset, piece); // Apply set-wide part overrides first
                         pInfo.partManager->applyPreset(activePreset, piece);
 						END_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_PARTS);
 
 						BEGIN_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_MATS);
+                        pInfo.materialManager->applyPreset(setWideMatsPreset, piece); // Apply set-wide material overrides first
 						pInfo.materialManager->applyPreset(activePreset, piece);
 						END_CPU_PROFILING_BLOCK(profiler, BLOCK_APPLY_MATS);
 
@@ -227,8 +231,10 @@ namespace kbf {
                         }
 
                         // Check Weapon & Slinger Disables
-                        hideWeapon  |= activePreset->hideWeapon;
-                        hideSlinger |= activePreset->hideSlinger;
+                        bool setWideWantsToHideWeapon  = setWidePartsPreset ? setWidePartsPreset->hideWeapon : false;
+                        bool setWideWantsToHideSlinger = setWidePartsPreset ? setWidePartsPreset->hideSlinger : false;
+                        hideWeapon  |= setWideWantsToHideWeapon  | activePreset->hideWeapon;
+                        hideSlinger |= setWideWantsToHideSlinger | activePreset->hideSlinger;
                     }
                 }
 

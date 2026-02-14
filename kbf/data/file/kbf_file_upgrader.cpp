@@ -45,8 +45,8 @@ namespace kbf {
 			case KbfFileType::PLAYER_CONFIG:         res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::DOT_KBF:               res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::FBS_PRESET:            res = UPGRADE_NO_OP(ver, doc); break;
-			case KbfFileType::PRESET:                res = upgradeFileUsingLUT(ver, doc, presetUpgradeLUT); break;
-			case KbfFileType::PRESET_GROUP:          res = UPGRADE_NO_OP(ver, doc); break;
+			case KbfFileType::PRESET:                res = upgradeFileUsingLUT(ver, doc, presetUpgradeLUT);      break;
+			case KbfFileType::PRESET_GROUP:          res = upgradeFileUsingLUT(ver, doc, presetGroupUpgradeLUT); break;
 			case KbfFileType::PLAYER_OVERRIDE:       res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::ARMOUR_LIST:           res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::BONE_CACHE:            res = upgradeFileUsingLUT(ver, doc, boneCacheUpgradeLUT); break;
@@ -260,6 +260,27 @@ namespace kbf {
 		return true;
 	}
 
+	bool KbfFileUpgrader::upgradePresetGroup_1_2_0(rapidjson::Document& doc) {
+		// 1. Add empty "partsPresets" object
+		// 2. Add empty "materialPresets object
+
+		auto& alloc = doc.GetAllocator();
+
+		if (!doc.HasMember("partsPresets")) {
+			doc.AddMember(rapidjson::Value("partsPresets", alloc), rapidjson::Value(rapidjson::kObjectType), alloc);
+		}
+
+		if (!doc.HasMember("matsPresets")) {
+			doc.AddMember(rapidjson::Value("matsPresets", alloc), rapidjson::Value(rapidjson::kObjectType), alloc);
+		}
+
+
+		DEBUG_STACK.fpush<FILE_UPGRADER_LOG_TAG>(
+			DebugStack::Color::COL_INFO,
+			"Preset Group upgrade to 1.2.0 complete.");
+			
+		return true;
+	}
 
 	bool KbfFileUpgrader::upgradeBoneCache_1_0_6(rapidjson::Document& doc) {
 		// 1. Add VERSION number

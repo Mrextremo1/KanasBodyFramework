@@ -169,6 +169,8 @@ namespace kbf {
         case ArmourPiece::AP_ARMS: targetMap = &activePresetGroup->armsPresets; break;
         case ArmourPiece::AP_COIL: targetMap = &activePresetGroup->coilPresets; break;
         case ArmourPiece::AP_LEGS: targetMap = &activePresetGroup->legsPresets; break;
+        case ArmourPiece::CUSTOM_AP_PARTS: targetMap = &activePresetGroup->partsPresets; break;
+        case ArmourPiece::CUSTOM_AP_MATS:  targetMap = &activePresetGroup->matsPresets;  break;
         }
         if (targetMap == nullptr) return nullptr;
 
@@ -249,6 +251,8 @@ namespace kbf {
             case ArmourPiece::AP_ARMS: targetMap = &activePresetGroup->armsPresets; break;
             case ArmourPiece::AP_COIL: targetMap = &activePresetGroup->coilPresets; break;
             case ArmourPiece::AP_LEGS: targetMap = &activePresetGroup->legsPresets; break;
+            case ArmourPiece::CUSTOM_AP_PARTS: targetMap = &activePresetGroup->partsPresets; break;
+            case ArmourPiece::CUSTOM_AP_MATS:  targetMap = &activePresetGroup->matsPresets;  break;
             }
             if (targetMap == nullptr) return nullptr;
 
@@ -2269,6 +2273,8 @@ namespace kbf {
         parsed &= parseAssignedPresetsObj(doc, PRESET_GROUP_ARMS_PRESETS_ID, &out->armsPresets);
         parsed &= parseAssignedPresetsObj(doc, PRESET_GROUP_COIL_PRESETS_ID, &out->coilPresets);
         parsed &= parseAssignedPresetsObj(doc, PRESET_GROUP_LEGS_PRESETS_ID, &out->legsPresets);
+        parsed &= parseAssignedPresetsObj(doc, PRESET_GROUP_PARTS_PRESETS_ID, &out->partsPresets);
+        parsed &= parseAssignedPresetsObj(doc, PRESET_GROUP_MATS_PRESETS_ID, &out->matsPresets);
 
         return parsed;
     }
@@ -2332,6 +2338,8 @@ namespace kbf {
         writePresetGroupAssignedPresets(PRESET_GROUP_ARMS_PRESETS_ID, presetGroup.armsPresets, writer);
         writePresetGroupAssignedPresets(PRESET_GROUP_COIL_PRESETS_ID, presetGroup.coilPresets, writer);
         writePresetGroupAssignedPresets(PRESET_GROUP_LEGS_PRESETS_ID, presetGroup.legsPresets, writer);
+        writePresetGroupAssignedPresets(PRESET_GROUP_PARTS_PRESETS_ID, presetGroup.partsPresets, writer);
+        writePresetGroupAssignedPresets(PRESET_GROUP_MATS_PRESETS_ID, presetGroup.matsPresets, writer);
 
         writer.EndObject();
     }
@@ -2578,47 +2586,40 @@ namespace kbf {
     void KBFDataManager::validatePresetGroups() {
         DEBUG_STACK.push(std::format("{} Validating Preset Groups...", KBF_DATA_MANAGER_LOG_TAG), DebugStack::Color::COL_DEBUG);
         for (auto& [uuid, presetGroup] : presetGroups) {
-            PresetGroup* newPresetGroup = nullptr;
+            bool usedNewPresetGroup = false;
+            PresetGroup newPresetGroup{ presetGroup };
             size_t defaultCount = 0;
             size_t invalidCount = 1;
 
-            // Body
-            for (auto& [armourSet, presetUUID] : presetGroup.bodyPresets) {
-                bool isDefault = presetUUID.empty();
-                bool isInvalid = getPresetByUUID(presetUUID) == nullptr;
+            auto validateList = [&](
+                std::unordered_map<ArmourSet, std::string>& originalMap, 
+                std::unordered_map<ArmourSet, std::string>& newMap
+            ) {
+                for (auto& [armourSet, presetUUID] : originalMap) {
+                    bool isDefault = presetUUID.empty();
+                    bool isInvalid = getPresetByUUID(presetUUID) == nullptr;
 
-                if (isDefault || isInvalid) {
-                    if (!newPresetGroup) {
-                        newPresetGroup = new PresetGroup{ presetGroup };
+                    if (isDefault || isInvalid) {
+                        usedNewPresetGroup = true;
+                        newMap.erase(armourSet);
+
+                        if (isDefault)      defaultCount++;
+                        else if (isInvalid) invalidCount++;
                     }
-
-                    // remove the entry
-                    newPresetGroup->bodyPresets.erase(armourSet);
-
-                    if      (isDefault) defaultCount++;
-                    else if (isInvalid) invalidCount++;
                 }
-            }
+            };
 
-            // Legs
-            for (auto& [armourSet, presetUUID] : presetGroup.legsPresets) {
-                bool isDefault = presetUUID.empty();
-                bool isInvalid = getPresetByUUID(presetUUID) == nullptr;
+            // apply to every preset list
+            validateList(presetGroup.setPresets,   newPresetGroup.setPresets  ) ;
+            validateList(presetGroup.helmPresets,  newPresetGroup.helmPresets );
+            validateList(presetGroup.bodyPresets,  newPresetGroup.bodyPresets );
+            validateList(presetGroup.armsPresets,  newPresetGroup.armsPresets );
+            validateList(presetGroup.coilPresets,  newPresetGroup.coilPresets );
+            validateList(presetGroup.legsPresets,  newPresetGroup.legsPresets );
+            validateList(presetGroup.partsPresets, newPresetGroup.partsPresets);
+            validateList(presetGroup.matsPresets,  newPresetGroup.matsPresets );
 
-                if (isDefault || isInvalid) {
-                    if (!newPresetGroup) {
-                        newPresetGroup = new PresetGroup{ presetGroup };
-                    }
-
-                    // remove the entry
-                    newPresetGroup->legsPresets.erase(armourSet);
-
-                    if (isDefault) defaultCount++;
-                    else if (isInvalid) invalidCount++;
-                }
-            }
-
-            if (newPresetGroup) {
+            if (usedNewPresetGroup) {
                 DEBUG_STACK.push(std::format("{} Validated Preset Group {} ({}): Cleaned {} defaults and reverted {} invalid presets to default.", 
                     KBF_DATA_MANAGER_LOG_TAG,
                     presetGroup.name,
@@ -2627,8 +2628,7 @@ namespace kbf {
                     invalidCount
                 ), DebugStack::Color::COL_WARNING);
 
-                updatePresetGroup(presetGroup.uuid, *newPresetGroup);
-                delete newPresetGroup;
+                updatePresetGroup(presetGroup.uuid, newPresetGroup);
             }
         }
     }
@@ -2640,20 +2640,25 @@ namespace kbf {
 
         {
             AlmaDefaults& alma = presetDefaults.alma;
-            const std::string handlersOutfitBefore      = alma.handlersOutfit;
-            const std::string newWorldCommissionBefore  = alma.newWorldCommission;
-            const std::string scrivenersCoatBefore      = alma.scrivenersCoat;
-            const std::string springBlossomKimonoBefore = alma.springBlossomKimono;
-            const std::string chunLiOutfitBefore        = alma.chunLiOutfit;
-            const std::string cammyOutfitBefore         = alma.cammyOutfit;
-            const std::string summerPonchoBefore        = alma.summerPoncho;
-            if (!validatePresetExists(alma.handlersOutfit))      badUUIDs.insert(handlersOutfitBefore     );
-            if (!validatePresetExists(alma.newWorldCommission))  badUUIDs.insert(newWorldCommissionBefore );
-            if (!validatePresetExists(alma.scrivenersCoat))      badUUIDs.insert(scrivenersCoatBefore     );
-            if (!validatePresetExists(alma.springBlossomKimono)) badUUIDs.insert(springBlossomKimonoBefore);
-            if (!validatePresetExists(alma.chunLiOutfit))        badUUIDs.insert(chunLiOutfitBefore       );
-            if (!validatePresetExists(alma.cammyOutfit))         badUUIDs.insert(cammyOutfitBefore        );
-            if (!validatePresetExists(alma.summerPoncho))        badUUIDs.insert(summerPonchoBefore       );
+            const std::string handlersOutfitBefore           = alma.handlersOutfit;
+            const std::string newWorldCommissionBefore       = alma.newWorldCommission;
+            const std::string scrivenersCoatBefore           = alma.scrivenersCoat;
+            const std::string springBlossomKimonoBefore      = alma.springBlossomKimono;
+            const std::string chunLiOutfitBefore             = alma.chunLiOutfit;
+            const std::string cammyOutfitBefore              = alma.cammyOutfit;
+            const std::string summerPonchoBefore             = alma.summerPoncho;
+            const std::string autumnWitchBefore              = alma.autumnWitch;
+            const std::string featherskirtSeikretDressBefore = alma.featherskirtSeikretDress;
+
+            if (!validatePresetExists(alma.handlersOutfit))           badUUIDs.insert(handlersOutfitBefore          );
+            if (!validatePresetExists(alma.newWorldCommission))       badUUIDs.insert(newWorldCommissionBefore      );
+            if (!validatePresetExists(alma.scrivenersCoat))           badUUIDs.insert(scrivenersCoatBefore          );
+            if (!validatePresetExists(alma.springBlossomKimono))      badUUIDs.insert(springBlossomKimonoBefore     );
+            if (!validatePresetExists(alma.chunLiOutfit))             badUUIDs.insert(chunLiOutfitBefore            );
+            if (!validatePresetExists(alma.cammyOutfit))              badUUIDs.insert(cammyOutfitBefore             );
+            if (!validatePresetExists(alma.summerPoncho))             badUUIDs.insert(summerPonchoBefore            );
+            if (!validatePresetExists(alma.autumnWitch))              badUUIDs.insert(summerPonchoBefore            );
+            if (!validatePresetExists(alma.featherskirtSeikretDress)) badUUIDs.insert(featherskirtSeikretDressBefore);
 
             if (badUUIDs.size() > 0) {
                 std::string errStr = "Alma config had invalid preset group(s):\n";
@@ -2672,10 +2677,12 @@ namespace kbf {
             DEBUG_STACK.push(std::format("{} Validating Gemma Config...", KBF_DATA_MANAGER_LOG_TAG), DebugStack::Color::COL_DEBUG);
 
             GemmaDefaults& gemma = presetDefaults.gemma;
-            const std::string smithysOutfitBefore   = gemma.smithysOutfit;
-            const std::string summerCoverallsBefore = gemma.summerCoveralls;
-            if (!validatePresetExists(gemma.smithysOutfit))   badUUIDs.insert(smithysOutfitBefore  );
-            if (!validatePresetExists(gemma.summerCoveralls)) badUUIDs.insert(summerCoverallsBefore);
+            const std::string smithysOutfitBefore       = gemma.smithysOutfit;
+            const std::string summerCoverallsBefore     = gemma.summerCoveralls;
+            const std::string redveilSeikretDressBefore = gemma.redveilSeikretDress;
+            if (!validatePresetExists(gemma.smithysOutfit))       badUUIDs.insert(smithysOutfitBefore      );
+            if (!validatePresetExists(gemma.summerCoveralls))     badUUIDs.insert(summerCoverallsBefore    );
+            if (!validatePresetExists(gemma.redveilSeikretDress)) badUUIDs.insert(redveilSeikretDressBefore);
 
             if (badUUIDs.size() > 0) {
                 std::string errStr = "Gemma config had invalid preset group(s):\n";
@@ -2694,10 +2701,14 @@ namespace kbf {
             DEBUG_STACK.push(std::format("{} Validating Erik Config...", KBF_DATA_MANAGER_LOG_TAG), DebugStack::Color::COL_DEBUG);
 
             ErikDefaults& erik = presetDefaults.erik;
-            const std::string handlersOutfitBefore = erik.handlersOutfit;
-            const std::string summerHatBefore      = erik.summerHat;
-            if (!validatePresetExists(erik.handlersOutfit))   badUUIDs.insert(handlersOutfitBefore);
-            if (!validatePresetExists(erik.summerHat))        badUUIDs.insert(summerHatBefore     );
+            const std::string handlersOutfitBefore         = erik.handlersOutfit;
+            const std::string summerHatBefore              = erik.summerHat;
+            const std::string autumnTherianBefore          = erik.autumnTherian;
+            const std::string crestcollarSeikretSuitBefore = erik.crestcollarSeikretSuit;
+            if (!validatePresetExists(erik.handlersOutfit))         badUUIDs.insert(handlersOutfitBefore        );
+            if (!validatePresetExists(erik.summerHat))              badUUIDs.insert(summerHatBefore             );
+            if (!validatePresetExists(erik.autumnTherian))          badUUIDs.insert(autumnTherianBefore         );
+            if (!validatePresetExists(erik.crestcollarSeikretSuit)) badUUIDs.insert(crestcollarSeikretSuitBefore);
 
             if (badUUIDs.size() > 0) {
                 std::string errStr = "Erik config had invalid preset group(s):\n";

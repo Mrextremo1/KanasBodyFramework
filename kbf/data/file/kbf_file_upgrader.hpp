@@ -38,6 +38,11 @@ namespace kbf {
 			{ {1,0,6}, [this](rapidjson::Document& doc) { return upgradePreset_1_0_6(doc); } },
 		};
 
+		bool upgradePresetGroup_1_2_0(rapidjson::Document& doc);
+		UpgradeLUT presetGroupUpgradeLUT{
+			{ {1,2,0}, [this](rapidjson::Document& doc) { return upgradePresetGroup_1_2_0(doc); } }
+		};
+
 		bool upgradeBoneCache_1_0_6(rapidjson::Document& doc);
 		UpgradeLUT boneCacheUpgradeLUT{
 			{ {1,0,6}, [this](rapidjson::Document& doc) { return upgradeBoneCache_1_0_6(doc); } },

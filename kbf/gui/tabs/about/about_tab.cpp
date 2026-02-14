@@ -457,6 +457,8 @@ namespace kbf {
             WRAP_BULLET("-", "This in particular *may* invalidate certain assigned presets you have for NPCs if you use model replacer mods for them.");
             WRAP_BULLET("-", "Please check your preset groups for NPCs and reassign presets where necessary.");
             CImGui::SeparatorText("Additions");
+            WRAP_BULLET("-", "Added the ability to hide and show columns in the preset group editor.");
+            WRAP_BULLET("-", "Added the ability to add base part and material overrides for each armour set in the preset group editor.");
             WRAP_BULLET("-", "Added more generic support for modded armours, for instance where GameObject names are non-standard (e.g. Mangie's Mods)");
             WRAP_BULLET("-", "Added more generic support for NPC prefabs, for instance where they are replaced with a different name (e.g. Handler replacers)");
             CImGui::SeparatorText("Changes");

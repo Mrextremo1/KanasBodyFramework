@@ -141,6 +141,9 @@ namespace kbf {
 
 		bool needsEditNone = false;
 		Preset* presetToEdit = nullptr;
+
+		bool presetGroupShowMatsCol  = false;
+		bool presetGroupShowPartCol = false;
 	};
 
 }

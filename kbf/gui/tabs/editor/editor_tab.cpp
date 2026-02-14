@@ -418,12 +418,106 @@ namespace kbf {
     }
 
     void EditorTab::drawPresetGroupEditor_AssignedPresets(PresetGroup** presetGroup) {
+        // This function is fat, and needs reducing the code duplication here
+        static bool showLegsCol = true;
+        static bool showCoilCol = true;
+        static bool showArmsCol = true;
+        static bool showBodyCol = true;
+        static bool showHelmCol = true;
+
+        ImVec2 pos = CImGui::GetCursorPos();
+        float frameHeight = CImGui::GetFrameHeight();
+        const char* filterTextStr = "Filters:";
+        const ImVec2 filterTextStrSize = CImGui::CalcTextSize(filterTextStr);
+        CImGui::SetCursorPosY(pos.y + (frameHeight - filterTextStrSize.y) * 0.5f);
+        CImGui::Text("Filters:");
+        CImGui::SetCursorPos(ImVec2{ pos.x + filterTextStrSize.x + CImGui::GetStyle().ItemSpacing.x, pos.y });
+
+        const ImVec2 iconSize{ frameHeight, frameHeight };
+        const ImVec4* armourFilterActiveCol = CImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
+        constexpr ImVec4 armourFilterDisabledCol{ 1.0f, 1.0f, 1.0f, 0.3f };
+
+        constexpr auto getTextPos = [](ImVec2 pos, ImVec2 size, std::string text) -> ImVec2 {
+            ImVec2 text_size = CImGui::CalcTextSize(text.c_str());
+            return ImVec2(
+                pos.x + (size.x - text_size.x) * 0.5f,
+                pos.y + (size.y - text_size.y) * 0.5f + 5.0f
+            );
+        };
+
+        CImGui::PushFont(wsSymbolFont, FONT_SIZE_DEFAULT_WILDS_SYMBOLS);
+        CImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 0.0f));
+
+        ArmourPieceFlags hoveredButton = ArmourPieceFlagBits::APF_NONE;
+
+        pos = CImGui::GetCursorScreenPos();
+        if (CImGui::InvisibleButton("##HelmFilter", iconSize)) showHelmCol = !showHelmCol;
+        CImGui::GetWindowDrawList()->AddText(getTextPos(pos, iconSize, WS_FONT_HELM), CImGui::GetColorU32(showHelmCol ? *armourFilterActiveCol : armourFilterDisabledCol), "h");
+        if (CImGui::IsItemHovered()) hoveredButton = ArmourPieceFlagBits::APF_HELM;
+        CImGui::SameLine();
+
+        pos = CImGui::GetCursorScreenPos();
+        if (CImGui::InvisibleButton("##BodyFilter", iconSize)) showBodyCol = !showBodyCol;
+        if (CImGui::IsItemHovered()) hoveredButton = ArmourPieceFlagBits::APF_BODY;
+        CImGui::GetWindowDrawList()->AddText(getTextPos(pos, iconSize, WS_FONT_BODY), CImGui::GetColorU32(showBodyCol ? *armourFilterActiveCol : armourFilterDisabledCol), "b");
+        CImGui::SameLine();
+
+        pos = CImGui::GetCursorScreenPos();
+        if (CImGui::InvisibleButton("##ArmsFilter", iconSize)) showArmsCol = !showArmsCol;
+        if (CImGui::IsItemHovered()) hoveredButton = ArmourPieceFlagBits::APF_ARMS;
+        CImGui::GetWindowDrawList()->AddText(getTextPos(pos, iconSize, WS_FONT_ARMS), CImGui::GetColorU32(showArmsCol ? *armourFilterActiveCol : armourFilterDisabledCol), "a");
+        CImGui::SameLine();
+
+        pos = CImGui::GetCursorScreenPos();
+        if (CImGui::InvisibleButton("##CoilFilter", iconSize)) showCoilCol = !showCoilCol;
+        if (CImGui::IsItemHovered()) hoveredButton = ArmourPieceFlagBits::APF_COIL;
+        CImGui::GetWindowDrawList()->AddText(getTextPos(pos, iconSize, WS_FONT_COIL), CImGui::GetColorU32(showCoilCol ? *armourFilterActiveCol : armourFilterDisabledCol), "c");
+        CImGui::SameLine();
+
+        pos = CImGui::GetCursorScreenPos();
+        if (CImGui::InvisibleButton("##LegsFilter", iconSize)) showLegsCol = !showLegsCol;
+        if (CImGui::IsItemHovered()) hoveredButton = ArmourPieceFlagBits::APF_LEGS;
+        CImGui::GetWindowDrawList()->AddText(getTextPos(pos, iconSize, WS_FONT_LEGS), CImGui::GetColorU32(showLegsCol ? *armourFilterActiveCol : armourFilterDisabledCol), "l");
+
+        if (hoveredButton != ArmourPieceFlagBits::APF_NONE) {
+            std::string tooltip;
+            switch (hoveredButton)
+            {
+            case ArmourPieceFlagBits::APF_SET:  tooltip = "Has base modifiers"; break;
+            case ArmourPieceFlagBits::APF_HELM: tooltip = "Has helmet modifiers"; break;
+            case ArmourPieceFlagBits::APF_BODY: tooltip = "Has chest modifiers"; break;
+            case ArmourPieceFlagBits::APF_ARMS: tooltip = "Has arm modifiers"; break;
+            case ArmourPieceFlagBits::APF_COIL: tooltip = "Has coil modifiers"; break;
+            case ArmourPieceFlagBits::APF_LEGS: tooltip = "Has leg modifiers"; break;
+            default: break;
+            }
+            if (!tooltip.empty()) {
+                CImGui::PushFont(dataManager.getRegularFontOverride(), FONT_SIZE_DEFAULT_MAIN);
+                CImGui::SetTooltip(tooltip.c_str());
+                CImGui::PopFont();
+            }
+        }
+
+        CImGui::PopStyleVar();
+        CImGui::PopFont();
+
+        CImGui::SameLine();
+        CImGui::Checkbox("Parts", &presetGroupShowPartCol);
+        CImGui::SetItemTooltip("Presets in the \"Parts\" column will apply part overrides to all pieces in the armour set.");
+        CImGui::SameLine();
+        CImGui::SetItemTooltip("Presets in the \"Materials\" column will apply material overrides to all pieces in the armour set.");
+        CImGui::Checkbox("Materials", &presetGroupShowMatsCol);
+
         static char filterBuffer[128] = "";
         std::string filterStr{ filterBuffer };
 
+        CImGui::SameLine();
         CImGui::PushItemWidth(-1);
         CImGui::InputTextWithHint("##ArmourSearch", "Armour Name...", filterBuffer, IM_ARRAYSIZE(filterBuffer));
         CImGui::PopItemWidth();
+
+        CImGui::Spacing();
+        CImGui::Separator();
         CImGui::Spacing();
 
         CImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
@@ -473,15 +567,26 @@ namespace kbf {
 
             CImGui::PushStyleVar(ImGuiStyleVar_CellPadding, LIST_PADDING);
 
-            CImGui::BeginTable("##AssignedPresetGridTable", 7, assignedPresetGridFlags);
+            CImGui::BeginTable("##AssignedPresetGridTable", 
+                2 
+                + static_cast<size_t>(showLegsCol)
+                + static_cast<size_t>(showCoilCol)
+                + static_cast<size_t>(showArmsCol)
+                + static_cast<size_t>(showBodyCol)
+                + static_cast<size_t>(showHelmCol)
+                + static_cast<size_t>(presetGroupShowPartCol) 
+                + static_cast<size_t>(presetGroupShowMatsCol),
+                assignedPresetGridFlags);
 
             CImGui::TableSetupColumn("",       fixedNoSortFlags, 0.0f);
             CImGui::TableSetupColumn("Armour", fixedNoSortFlags, 0.0f);
-			CImGui::TableSetupColumn("Head",   stretchNoSortFlags, 0.0f);
-            CImGui::TableSetupColumn("Body",   stretchNoSortFlags, 0.0f);
-			CImGui::TableSetupColumn("Arms",   stretchNoSortFlags, 0.0f);
-			CImGui::TableSetupColumn("Waist",  stretchNoSortFlags, 0.0f);
-            CImGui::TableSetupColumn("Legs",   stretchNoSortFlags, 0.0f);
+			if (showHelmCol)            CImGui::TableSetupColumn("Head",   stretchNoSortFlags, 0.0f);
+            if (showBodyCol)            CImGui::TableSetupColumn("Body",   stretchNoSortFlags, 0.0f);
+			if (showArmsCol)            CImGui::TableSetupColumn("Arms",   stretchNoSortFlags, 0.0f);
+			if (showCoilCol)            CImGui::TableSetupColumn("Waist",  stretchNoSortFlags, 0.0f);
+            if (showLegsCol)            CImGui::TableSetupColumn("Legs",   stretchNoSortFlags, 0.0f);
+            if (presetGroupShowPartCol) CImGui::TableSetupColumn("Parts",     stretchNoSortFlags, 0.0f);
+            if (presetGroupShowMatsCol) CImGui::TableSetupColumn("Materials", stretchNoSortFlags, 0.0f);
             CImGui::TableSetupScrollFreeze(0, 1);
             CImGui::TableHeadersRow();
 
@@ -490,9 +595,11 @@ namespace kbf {
 
             constexpr float rowHeight = 40.0f;
 
-            // Add default armour set back in at front as not in list by default
-            // O(N) -- Too bad!
-            armourSets.insert(armourSets.begin(), ArmourSet::DEFAULT);
+            if (filterStr.empty()) {
+                // Add default armour set back in at front as not in list by default
+                // O(N) -- Too bad!
+                armourSets.insert(armourSets.begin(), ArmourSet::DEFAULT);
+            }
 
             for (const ArmourSet& armour : armourSets) {
                 CImGui::TableNextRow();
@@ -511,10 +618,11 @@ namespace kbf {
                 CImGui::PushFont(wsArmourFont, FONT_SIZE_DEFAULT_WILDS_ARMOUR);
                 CImGui::SetCursorPosY(CImGui::GetCursorPosY() + (rowHeight - CImGui::GetTextLineHeight()) * 0.5f);
 
-                std::string displayName = armour.name == ANY_ARMOUR_ID ? "Default" : armour.name;
-                if (armour.name == ANY_ARMOUR_ID) CImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.365f, 0.678f, 0.886f, 0.8f));
+                bool isDefault = armour.name == ANY_ARMOUR_ID;
+                std::string displayName = isDefault ? "Default" : armour.name;
+                if (isDefault) CImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.365f, 0.678f, 0.886f, 0.8f));
                 CImGui::Text(displayName.c_str());
-				if (armour.name == ANY_ARMOUR_ID) CImGui::PopStyleColor();
+				if (isDefault) CImGui::PopStyleColor();
                 CImGui::PopFont();
 
 				Preset* helmPreset = nullptr;
@@ -537,23 +645,48 @@ namespace kbf {
                 if ((**presetGroup).armourHasPresetUUID(armour, ArmourPiece::AP_LEGS))
                     legsPreset = dataManager.getPresetByUUID((**presetGroup).legsPresets.at(armour));
 
-				CImGui::TableSetColumnIndex(2);
-				drawPresetGroupEditor_AssignedPresetsTableCell(helmPreset, armour, ArmourPiece::AP_HELM, 2, rowHeight);
-				CImGui::TableSetColumnIndex(3);
-				drawPresetGroupEditor_AssignedPresetsTableCell(bodyPreset, armour, ArmourPiece::AP_BODY, 3, rowHeight);
-				CImGui::TableSetColumnIndex(4);
-				drawPresetGroupEditor_AssignedPresetsTableCell(armsPreset, armour, ArmourPiece::AP_ARMS, 4, rowHeight);
-				CImGui::TableSetColumnIndex(5);
-				drawPresetGroupEditor_AssignedPresetsTableCell(coilPreset, armour, ArmourPiece::AP_COIL, 5, rowHeight);
-                CImGui::TableSetColumnIndex(6);
-                drawPresetGroupEditor_AssignedPresetsTableCell(legsPreset, armour, ArmourPiece::AP_LEGS, 6, rowHeight);
+                Preset* partsPreset = nullptr;
+                if ((**presetGroup).armourHasPresetUUID(armour, ArmourPiece::CUSTOM_AP_PARTS))
+                    partsPreset = dataManager.getPresetByUUID((**presetGroup).partsPresets.at(armour));
+
+                Preset* matsPreset = nullptr;
+                if ((**presetGroup).armourHasPresetUUID(armour, ArmourPiece::CUSTOM_AP_MATS))
+                    matsPreset = dataManager.getPresetByUUID((**presetGroup).matsPresets.at(armour));
+
+                if (showHelmCol) {
+                    CImGui::TableNextColumn();
+				    drawPresetGroupEditor_AssignedPresetsTableCell(helmPreset, armour, ArmourPiece::AP_HELM, CImGui::TableGetColumnIndex(), rowHeight);
+                }
+                if (showBodyCol) {
+				    CImGui::TableNextColumn();
+				    drawPresetGroupEditor_AssignedPresetsTableCell(bodyPreset, armour, ArmourPiece::AP_BODY, CImGui::TableGetColumnIndex(), rowHeight);
+                }
+                if (showArmsCol) {
+				    CImGui::TableNextColumn();
+				    drawPresetGroupEditor_AssignedPresetsTableCell(armsPreset, armour, ArmourPiece::AP_ARMS, CImGui::TableGetColumnIndex(), rowHeight);
+                }
+                if (showCoilCol) {
+				    CImGui::TableNextColumn();
+				    drawPresetGroupEditor_AssignedPresetsTableCell(coilPreset, armour, ArmourPiece::AP_COIL, CImGui::TableGetColumnIndex(), rowHeight);
+                }
+                if (showLegsCol) {
+                    CImGui::TableNextColumn();
+                    drawPresetGroupEditor_AssignedPresetsTableCell(legsPreset, armour, ArmourPiece::AP_LEGS, CImGui::TableGetColumnIndex(), rowHeight);
+                }
+                if (presetGroupShowPartCol) {
+                    CImGui::TableNextColumn();
+                    drawPresetGroupEditor_AssignedPresetsTableCell(partsPreset, armour, ArmourPiece::CUSTOM_AP_PARTS, CImGui::TableGetColumnIndex(), rowHeight);
+                }
+                if (presetGroupShowMatsCol) {
+                    CImGui::TableNextColumn();
+                    drawPresetGroupEditor_AssignedPresetsTableCell(matsPreset, armour, ArmourPiece::CUSTOM_AP_MATS, CImGui::TableGetColumnIndex(), rowHeight);
+                }
             }
 
             CImGui::EndTable();
 
             CImGui::PopStyleVar();
         }
-
     }
 
     void EditorTab::drawPresetGroupEditor_AssignedPresetsTableCell(Preset* preset, ArmourSet armour, ArmourPiece piece, int column, float rowHeight) {
@@ -676,6 +809,8 @@ namespace kbf {
         case ArmourPiece::AP_ARMS: targetMap = &openObject.ptrAfter.presetGroup->armsPresets; break;
         case ArmourPiece::AP_COIL: targetMap = &openObject.ptrAfter.presetGroup->coilPresets; break;
         case ArmourPiece::AP_LEGS: targetMap = &openObject.ptrAfter.presetGroup->legsPresets; break;
+        case ArmourPiece::CUSTOM_AP_PARTS: targetMap = &openObject.ptrAfter.presetGroup->partsPresets; break;
+        case ArmourPiece::CUSTOM_AP_MATS:  targetMap = &openObject.ptrAfter.presetGroup->matsPresets;  break;
         }
 
         if (targetMap) {
