@@ -18,6 +18,7 @@ namespace kbf {
 
 		enum class UpgradeResult {
 			SUCCESS,
+			SUCCESS_NON_PERSISTENT, // for files which upgrade but shouldn't be rewritten to persistent storage
 			NO_UPGRADE_NEEDED,
 			FAILED,
 		};
@@ -28,7 +29,7 @@ namespace kbf {
 		SemanticVersion getFileVersion(const rapidjson::Document& doc) const;
 
 		using UpgradeLUT = std::map<SemanticVersion, std::function<bool(rapidjson::Document&)>>;
-		UpgradeResult upgradeFileUsingLUT(SemanticVersion ver, rapidjson::Document& doc, const UpgradeLUT& lut);
+		UpgradeResult upgradeFileUsingLUT(SemanticVersion ver, rapidjson::Document& doc, const UpgradeLUT& lut, bool persistent = true);
 
 		// Files that need upgrades
 		bool upgradePreset_1_0_4(rapidjson::Document& doc);

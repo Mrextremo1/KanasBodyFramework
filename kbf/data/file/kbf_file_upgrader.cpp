@@ -43,7 +43,7 @@ namespace kbf {
 			case KbfFileType::SUPPORT_HUNTER_CONFIG: res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::NPC_CONFIG:            res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::PLAYER_CONFIG:         res = UPGRADE_NO_OP(ver, doc); break;
-			case KbfFileType::DOT_KBF:               res = upgradeFileUsingLUT(ver, doc, dotKBFUpgradeLUT); break;
+			case KbfFileType::DOT_KBF:               res = upgradeFileUsingLUT(ver, doc, dotKBFUpgradeLUT, false); break; // non-persistent
 			case KbfFileType::FBS_PRESET:            res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::PRESET:                res = upgradeFileUsingLUT(ver, doc, presetUpgradeLUT);      break;
 			case KbfFileType::PRESET_GROUP:          res = upgradeFileUsingLUT(ver, doc, presetGroupUpgradeLUT); break;
@@ -54,11 +54,8 @@ namespace kbf {
 			case KbfFileType::MATERIAL_CACHE:        res = UPGRADE_NO_OP(ver, doc); break;
 		}
 
-		// didn't find a way for upgradeFileUsingLUT to return no upgrade needed only woth .KBF
-		if (fileType == KbfFileType::DOT_KBF) return UpgradeResult::NO_UPGRADE_NEEDED;
-
 		// Update version in file to latest
-		if (res == UpgradeResult::SUCCESS) {
+		if (res == UpgradeResult::SUCCESS || res == UpgradeResult::SUCCESS_NON_PERSISTENT) {
 			SemanticVersion currentVer = SemanticVersion::currentVersion();
 			std::string currentVerStr = currentVer.toString();
 
@@ -76,7 +73,12 @@ namespace kbf {
 		return res;
 	}
 
-	KbfFileUpgrader::UpgradeResult KbfFileUpgrader::upgradeFileUsingLUT(SemanticVersion ver, rapidjson::Document& doc, const UpgradeLUT& lut) {
+	KbfFileUpgrader::UpgradeResult KbfFileUpgrader::upgradeFileUsingLUT(
+		SemanticVersion ver, 
+		rapidjson::Document& doc,
+		const UpgradeLUT& lut,
+		bool persistent
+	) {
 		bool tried = false;
 		bool upgraded = true;
 
@@ -88,7 +90,9 @@ namespace kbf {
 		}
 
 		if (!tried) return UpgradeResult::NO_UPGRADE_NEEDED;
-		return upgraded ? UpgradeResult::SUCCESS : UpgradeResult::FAILED;
+		
+		UpgradeResult successFlag = persistent ? UpgradeResult::SUCCESS : UpgradeResult::SUCCESS_NON_PERSISTENT;
+		return upgraded ? successFlag : UpgradeResult::FAILED;
 	}
 
 	bool KbfFileUpgrader::upgradePreset_1_0_4(rapidjson::Document& doc) {  
@@ -407,7 +411,9 @@ namespace kbf {
 
 	bool KbfFileUpgrader::upgradeDotKBF_1_2_0(rapidjson::Document& doc) {
 		// Assumes that every preset group comes from before 1.2.0
-		// 1. Run every preset group through the upgrader
+		// 1. Add partsPresets field to preset groups
+		// 2. Add matsPresets field to preset groups
+
 		rapidjson::Value& arr = doc["preset_groups"];
 		auto& alloc = doc.GetAllocator();
 		for (auto presetGroup = arr.MemberBegin(); presetGroup != arr.MemberEnd(); ++presetGroup) {
@@ -425,12 +431,13 @@ namespace kbf {
 				gotUpgraded = true;
 			}
 
-			if (gotUpgraded)
+			if (gotUpgraded) {
 				DEBUG_STACK.fpush<FILE_UPGRADER_LOG_TAG>(
 					DebugStack::Color::COL_INFO,
-					"Imported Preset Group \"{}\" upgraded to 1.2.0.",
+					".KBF file \"{}\" upgraded to 1.2.0.",
 					name
 				);
+			}
 		}
 
 		return true;
