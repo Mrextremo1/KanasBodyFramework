@@ -43,7 +43,7 @@ namespace kbf {
 			case KbfFileType::SUPPORT_HUNTER_CONFIG: res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::NPC_CONFIG:            res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::PLAYER_CONFIG:         res = UPGRADE_NO_OP(ver, doc); break;
-			case KbfFileType::DOT_KBF:               res = UPGRADE_NO_OP(ver, doc); break;
+			case KbfFileType::DOT_KBF:               res = upgradeFileUsingLUT(ver, doc, dotKBFUpgradeLUT); break;
 			case KbfFileType::FBS_PRESET:            res = UPGRADE_NO_OP(ver, doc); break;
 			case KbfFileType::PRESET:                res = upgradeFileUsingLUT(ver, doc, presetUpgradeLUT);      break;
 			case KbfFileType::PRESET_GROUP:          res = upgradeFileUsingLUT(ver, doc, presetGroupUpgradeLUT); break;
@@ -53,6 +53,9 @@ namespace kbf {
 			case KbfFileType::PART_CACHE:            res = upgradeFileUsingLUT(ver, doc, partCacheUpgradeLUT); break;
 			case KbfFileType::MATERIAL_CACHE:        res = UPGRADE_NO_OP(ver, doc); break;
 		}
+
+		// didn't find a way for upgradeFileUsingLUT to return no upgrade needed only woth .KBF
+		if (fileType == KbfFileType::DOT_KBF) return UpgradeResult::NO_UPGRADE_NEEDED;
 
 		// Update version in file to latest
 		if (res == UpgradeResult::SUCCESS) {
@@ -402,4 +405,34 @@ namespace kbf {
 		return true;
 	}
 
+	bool KbfFileUpgrader::upgradeDotKBF_1_2_0(rapidjson::Document& doc) {
+		// Assumes that every preset group comes from before 1.2.0
+		// 1. Run every preset group through the upgrader
+		rapidjson::Value& arr = doc["preset_groups"];
+		auto& alloc = doc.GetAllocator();
+		for (auto presetGroup = arr.MemberBegin(); presetGroup != arr.MemberEnd(); ++presetGroup) {
+			const char* name = presetGroup->name.GetString();
+			rapidjson::Value& presetGroupContent = presetGroup->value;
+			presetGroupContent[FORMAT_VERSION_ID] = "1.2.0";
+			bool gotUpgraded = false;
+			if (!presetGroupContent.HasMember("partsPresets")) {
+				presetGroupContent.AddMember(rapidjson::Value("partsPresets", alloc), rapidjson::Value(rapidjson::kObjectType), alloc);
+				gotUpgraded = true;
+			}
+
+			if (!presetGroupContent.HasMember("matsPresets")) {
+				presetGroupContent.AddMember(rapidjson::Value("matsPresets", alloc), rapidjson::Value(rapidjson::kObjectType), alloc);
+				gotUpgraded = true;
+			}
+
+			if (gotUpgraded)
+				DEBUG_STACK.fpush<FILE_UPGRADER_LOG_TAG>(
+					DebugStack::Color::COL_INFO,
+					"Imported Preset Group \"{}\" upgraded to 1.2.0.",
+					name
+				);
+		}
+
+		return true;
+	}
 }
