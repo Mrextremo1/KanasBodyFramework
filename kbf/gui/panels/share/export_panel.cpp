@@ -555,8 +555,13 @@ namespace kbf {
 
     void ExportPanel::selectPresetGroup(const PresetGroup* presetGroup) {
         selectedPresetGroups.insert(presetGroup->uuid);
-        std::ranges::for_each(presetGroup->bodyPresets, [&](auto& entry) { selectedPresets.insert(entry.second); });
-        std::ranges::for_each(presetGroup->legsPresets, [&](auto& entry) { selectedPresets.insert(entry.second); });
+        std::ranges::for_each(presetGroup->helmPresets,  [&](auto& entry) { selectedPresets.insert(entry.second); });
+        std::ranges::for_each(presetGroup->bodyPresets,  [&](auto& entry) { selectedPresets.insert(entry.second); });
+        std::ranges::for_each(presetGroup->armsPresets,  [&](auto& entry) { selectedPresets.insert(entry.second); });
+        std::ranges::for_each(presetGroup->coilPresets,  [&](auto& entry) { selectedPresets.insert(entry.second); });
+        std::ranges::for_each(presetGroup->legsPresets,  [&](auto& entry) { selectedPresets.insert(entry.second); });
+        std::ranges::for_each(presetGroup->partsPresets, [&](auto& entry) { selectedPresets.insert(entry.second); });
+        std::ranges::for_each(presetGroup->matsPresets,  [&](auto& entry) { selectedPresets.insert(entry.second); });
     }
 
     void ExportPanel::deselectPresetGroup(const PresetGroup* presetGroup) {
@@ -904,11 +909,10 @@ namespace kbf {
 
     void ExportPanel::selectPlayerOverride(const PlayerOverride* override) {
         selectedPlayerOverrides.insert(override->player);
+        // Add dependencies
         if (!override->presetGroup.empty()) {
             const PresetGroup* presetGroup = dataManager.getPresetGroupByUUID(override->presetGroup);
-            selectedPresetGroups.insert(presetGroup->uuid);
-            std::ranges::for_each(presetGroup->bodyPresets, [&](auto& entry) { selectedPresets.insert(entry.second); });
-            std::ranges::for_each(presetGroup->legsPresets, [&](auto& entry) { selectedPresets.insert(entry.second); });
+            if (presetGroup) selectPresetGroup(presetGroup);
         }
 	}
 
