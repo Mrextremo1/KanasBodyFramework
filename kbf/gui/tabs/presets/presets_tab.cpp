@@ -26,7 +26,7 @@ namespace kbf {
 
         bool canImportFBSpresets = dataManager.fbsDirectoryFound() && !importFBSPresetsPanel.isVisible();
         if (!canImportFBSpresets) CImGui::BeginDisabled();
-        if (CImGui::Button("Import FBS Presets as Bundle", buttonSize)) {
+        if (CImGui::Button("Import FBS Presets", buttonSize)) {
 			openImportFBSPresetsPanel();
         }
 		if (!canImportFBSpresets) CImGui::EndDisabled();
