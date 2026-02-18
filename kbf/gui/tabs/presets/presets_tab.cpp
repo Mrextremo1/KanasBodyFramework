@@ -39,14 +39,20 @@ namespace kbf {
                 drawBundleTab();
                 CImGui::EndTabItem();
             }
-            if (CImGui::IsItemClicked()) closePopouts();
+            if (CImGui::IsItemClicked()) { 
+                closePopouts(); 
+                inBundlesTab = true;
+            }
 
             if (CImGui::BeginTabItem("All Presets")) {
                 CImGui::Spacing();
                 drawPresetList();
                 CImGui::EndTabItem();
             }
-            if (CImGui::IsItemClicked()) closePopouts();
+            if (CImGui::IsItemClicked()) { 
+                closePopouts(); 
+                inBundlesTab = false; 
+            }
 
             CImGui::EndTabBar();
         }
@@ -545,7 +551,7 @@ namespace kbf {
     }
 
     void PresetsTab::openCreatePresetPanel() {
-        createPresetPanel.openNew("Create Preset", "CreatePresetPanel", dataManager, wsSymbolFont, wsArmourFont);
+        createPresetPanel.openNew("Create Preset", "CreatePresetPanel", dataManager, wsSymbolFont, wsArmourFont, getBundleViewed());
         createPresetPanel.get()->focus();
 
         createPresetPanel.get()->onCancel([&]() {
@@ -559,7 +565,7 @@ namespace kbf {
     }
 
     void PresetsTab::openCombinePresetsPanel() {
-        combinePresetsPanel.openNew("Combine Presets", "CombinePresetsPanel", dataManager, wsSymbolFont, wsArmourFont);
+        combinePresetsPanel.openNew("Combine Presets", "CombinePresetsPanel", dataManager, wsSymbolFont, wsArmourFont, getBundleViewed());
         combinePresetsPanel.get()->focus();
         combinePresetsPanel.get()->onCancel([&]() {
             combinePresetsPanel.close();
@@ -632,5 +638,7 @@ namespace kbf {
         });
 	}
 
-
+    std::string PresetsTab::getBundleViewed() {
+        return inBundlesTab ? bundleViewed : "";
+    }
 }
